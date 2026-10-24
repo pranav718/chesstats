@@ -40,7 +40,7 @@ export interface RatingStats {
 
 export interface PlayerProfile {
   username: string;
-  title?: string; // GM, IM, FM, etc.
+  title?: string;
   name?: string;
   avatar?: string;
   country?: string;
@@ -80,7 +80,7 @@ export interface MoveAnalysis {
   san: string;
   uci: string;
   fen: string;
-  evaluation: number; // in centipawns (+1.25 = 125), or +10000 for mate
+  evaluation: number;
   isMate?: boolean;
   mateIn?: number;
   classification: MoveClassification;
@@ -113,7 +113,7 @@ export interface ChessGame {
     black: number;
   };
   acpl?: {
-    white: number; // Average Centipawn Loss
+    white: number;
     black: number;
   };
   classificationCounts?: {
@@ -158,21 +158,21 @@ export interface HeadToHeadStats {
 }
 
 export interface TiltAnalytics {
-  score: number; // 0 to 100
+  score: number;
   level: 'optimal' | 'moderate' | 'high' | 'severe';
   currentStreak: {
     type: 'win' | 'loss' | 'neutral';
     count: number;
   };
-  peakTiltHours: string[]; // e.g., ["01:00 - 04:00"]
-  timeTroubleBlunderRate: number; // % blunders made with < 15 seconds
+  peakTiltHours: string[];
+  timeTroubleBlunderRate: number;
   ratingVarianceLast30Days: number;
   advice: string;
 }
 
 export interface SquareHeatmapData {
-  square: string; // e.g. "e4"
-  count: number; // number of times occupied or attacked
-  intensity: number; // 0 to 1
+  square: string;
+  count: number;
+  intensity: number;
   dominantPiece?: string;
 }
