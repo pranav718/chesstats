@@ -1,0 +1,85 @@
+.wrapper {
+  background: var(--bg-glass-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+}
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 1.25rem;
+}
+
+.movesList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.moveItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  gap: 1rem;
+  transition: all 0.15s ease;
+}
+
+.moveItem:hover {
+  border-color: var(--border-medium);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.moveSan {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  min-width: 65px;
+}
+
+.gamesCount {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.barTrack {
+  display: flex;
+  height: 10px;
+  flex: 1;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.whiteBar {
+  background: #f8fafc;
+}
+
+.drawBar {
+  background: #64748b;
+}
+
+.blackBar {
+  background: #1e293b;
+}
+
+.percentages {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  min-width: 140px;
+  justify-content: flex-end;
+}
