@@ -1,0 +1,136 @@
+.container {
+  padding: 2.5rem 0;
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.searchInput {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  color: #ffffff;
+  outline: none;
+  width: 250px;
+}
+
+.searchInput:focus {
+  border-color: var(--brand-emerald);
+}
+
+.sortGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sortBtn {
+  padding: 0.35rem 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.activeSort {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--brand-emerald);
+  color: var(--brand-emerald);
+  font-weight: 600;
+}
+
+.tableCard {
+  background: var(--bg-glass-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.table th {
+  padding: 0.85rem 1rem;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table td {
+  padding: 0.95rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.row:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.rankCell {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--text-muted);
+  width: 50px;
+  text-align: center;
+}
+
+.playerCell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.playerLink {
+  color: #ffffff;
+  font-weight: 700;
+  transition: color 0.15s ease;
+}
+
+.playerLink:hover {
+  color: var(--brand-emerald);
+}
+
+.ratingCell {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #ffffff;
+}
