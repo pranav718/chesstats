@@ -1,69 +1,52 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import React from 'react';
+import styles from './page.module.css';
+import { HeroSection } from '@/components/home/HeroSection';
+import { GrandmasterShowcase } from '@/components/home/GrandmasterShowcase';
+import { FeaturesGrid } from '@/components/home/FeaturesGrid';
+import { RecentGamesSpotlight } from '@/components/home/RecentGamesSpotlight';
+import { MetricCard } from '@/components/MetricCard';
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className={styles.mainContainer}>
+      <HeroSection />
+
+      <section className={styles.statsBanner}>
+        <div className={`container ${styles.statsGrid}`}>
+          <MetricCard
+            title="Monitored Games"
+            value="14.8M+"
+            icon="♟️"
+            delta="124k this week"
+            isPositiveDelta={true}
+            subtitle="Analyzed across platforms"
+          />
+          <MetricCard
+            title="Avg CAPS Accuracy"
+            value="84.2%"
+            icon="🎯"
+            delta="+1.4%"
+            isPositiveDelta={true}
+            subtitle="Community precision benchmark"
+          />
+          <MetricCard
+            title="Opening ECO Profiles"
+            value="2,480"
+            icon="📖"
+            subtitle="With win rate continuations"
+          />
+          <MetricCard
+            title="Tilt Detection Speed"
+            value="< 50ms"
+            icon="⚡"
+            subtitle="Real-time session alert radar"
+          />
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+
+      <GrandmasterShowcase />
+      <FeaturesGrid />
+      <RecentGamesSpotlight />
+    </main>
   );
 }
