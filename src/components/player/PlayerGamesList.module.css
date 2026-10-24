@@ -1,0 +1,136 @@
+.wrapper {
+  background: var(--bg-glass-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filterBtn {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.activeFilter {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--brand-emerald);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.gamesTable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gameRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.15s ease;
+}
+
+.gameRow:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-medium);
+  transform: translateX(2px);
+}
+
+.outcomePill {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  min-width: 45px;
+  text-align: center;
+}
+
+.winPill {
+  background: rgba(16, 185, 129, 0.18);
+  color: var(--brand-emerald);
+}
+
+.lossPill {
+  background: rgba(220, 38, 38, 0.18);
+  color: var(--eval-blunder);
+}
+
+.drawPill {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--text-secondary);
+}
+
+.gameInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  margin-left: 1rem;
+}
+
+.opponent {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #ffffff;
+}
+
+.opening {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.accuracy {
+  font-family: var(--font-mono);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.reviewLink {
+  color: var(--brand-emerald);
+  font-weight: 600;
+}
