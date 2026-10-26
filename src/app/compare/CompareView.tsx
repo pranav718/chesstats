@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import styles from './CompareView.module.css';
 import { HeadToHeadStats } from '@/types/chess';
+import { OpeningClashMatrix } from '@/components/compare/OpeningClashMatrix';
 import { chessAudio } from '@/lib/sound';
 
 interface CompareViewProps {
@@ -84,7 +85,9 @@ export function CompareView({ stats }: CompareViewProps) {
         </div>
       </div>
 
-      <div className={styles.matchList}>
+      <OpeningClashMatrix player1={stats.player1} player2={stats.player2} />
+
+      <div className={styles.matchList} style={{ marginTop: '2.5rem' }}>
         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', marginBottom: '0.5rem' }}>
           Head-to-Head Encounter Log
         </h3>
