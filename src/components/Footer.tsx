@@ -41,19 +41,22 @@ export function Footer() {
         </div>
 
         <div>
-          <h4 className={styles.colTitle}>Tools & Data</h4>
+          <h4 className={styles.colTitle}>Tools & Play</h4>
           <ul className={styles.linkList}>
+            <li className={styles.linkItem}>
+              <Link href="/puzzles">Tactical Puzzle Trainer</Link>
+            </li>
+            <li className={styles.linkItem}>
+              <Link href="/clock">Tournament Chess Clock</Link>
+            </li>
+            <li className={styles.linkItem}>
+              <Link href="/titles">FIDE Title Explorer</Link>
+            </li>
             <li className={styles.linkItem}>
               <Link href="/pgn">PGN & FEN Studio</Link>
             </li>
             <li className={styles.linkItem}>
               <Link href="/leaderboard">Grandmaster Ranks</Link>
-            </li>
-            <li className={styles.linkItem}>
-              <Link href="/player/magnuscarlsen">Magnus Carlsen</Link>
-            </li>
-            <li className={styles.linkItem}>
-              <Link href="/player/hikaru">Hikaru Nakamura</Link>
             </li>
           </ul>
         </div>

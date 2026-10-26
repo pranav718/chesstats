@@ -31,10 +31,13 @@ export function Navbar() {
   const links = [
     { href: '/', label: 'Overview' },
     { href: '/analysis', label: 'Analysis' },
+    { href: '/puzzles', label: 'Puzzles' },
+    { href: '/clock', label: 'Clock' },
+    { href: '/titles', label: 'Titles' },
     { href: '/openings', label: 'Openings' },
     { href: '/compare', label: 'Compare' },
     { href: '/heatmap', label: 'Heatmap' },
-    { href: '/pgn', label: 'PGN Studio' },
+    { href: '/pgn', label: 'PGN' },
     { href: '/leaderboard', label: 'Leaderboard' },
   ];
 
