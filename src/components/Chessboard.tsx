@@ -7,12 +7,15 @@ import { parseFen, coordsToSquare, getTurnFromFen } from '@/lib/fenPgn';
 import { chessAudio } from '@/lib/sound';
 import { STARTING_FEN } from '@/lib/constants';
 
+import { ChessboardArrows, ArrowData } from './ChessboardArrows';
+
 interface ChessboardProps {
   fen?: string;
   orientation?: 'white' | 'black';
   highlightedSquares?: string[];
   lastMoveSquares?: string[];
   checkSquare?: string;
+  arrows?: ArrowData[];
   onSquareClick?: (square: string) => void;
   showCoordinates?: boolean;
 }
@@ -23,6 +26,7 @@ export function Chessboard({
   highlightedSquares = [],
   lastMoveSquares = [],
   checkSquare,
+  arrows = [],
   onSquareClick,
   showCoordinates = true,
 }: ChessboardProps) {
@@ -104,6 +108,7 @@ export function Chessboard({
             );
           })}
         </div>
+        <ChessboardArrows arrows={arrows} orientation={orientation} />
       </div>
 
       <div className={styles.toolbar}>
