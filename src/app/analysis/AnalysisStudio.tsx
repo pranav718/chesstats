@@ -10,6 +10,7 @@ import { EvalGraph } from '@/components/analysis/EvalGraph';
 import { MoveReviewPanel } from '@/components/analysis/MoveReviewPanel';
 import { PlaybackControls } from '@/components/analysis/PlaybackControls';
 import { AccuracyBreakdown } from '@/components/analysis/AccuracyBreakdown';
+import { BlunderMotifs } from '@/components/analysis/BlunderMotifs';
 import { MoveList } from '@/components/MoveList';
 import { STARTING_FEN } from '@/lib/constants';
 
@@ -20,7 +21,7 @@ interface AnalysisStudioProps {
 export function AnalysisStudio({ game }: AnalysisStudioProps) {
   const [currentPly, setCurrentPly] = useState(0);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
-  const [activeTab, setActiveTab] = useState<'review' | 'moves' | 'accuracy'>('review');
+  const [activeTab, setActiveTab] = useState<'review' | 'moves' | 'accuracy' | 'motifs'>('review');
 
   const currentMove = currentPly > 0 ? game.moves[currentPly - 1] : undefined;
   const currentFen = currentMove?.fen || STARTING_FEN;
@@ -80,6 +81,12 @@ export function AnalysisStudio({ game }: AnalysisStudioProps) {
           >
             Precision Stats
           </button>
+          <button
+            onClick={() => setActiveTab('motifs')}
+            className={`${styles.tabBtn} ${activeTab === 'motifs' ? styles.activeTabBtn : ''}`}
+          >
+            Tactical Motifs
+          </button>
         </div>
       </div>
 
@@ -130,6 +137,10 @@ export function AnalysisStudio({ game }: AnalysisStudioProps) {
 
           {activeTab === 'accuracy' && (
             <AccuracyBreakdown game={game} />
+          )}
+
+          {activeTab === 'motifs' && (
+            <BlunderMotifs game={game} />
           )}
         </div>
       </div>
