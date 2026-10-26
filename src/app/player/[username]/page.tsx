@@ -8,6 +8,7 @@ import { RatingHistoryChart } from '@/components/player/RatingHistoryChart';
 import { ColorBreakdown } from '@/components/player/ColorBreakdown';
 import { OpeningStatsTable } from '@/components/player/OpeningStatsTable';
 import { TiltAnalyticsView } from '@/components/player/TiltAnalytics';
+import { TimeScrambleChart } from '@/components/player/TimeScrambleChart';
 import { PlayerGamesList } from '@/components/player/PlayerGamesList';
 
 interface PlayerPageProps {
@@ -40,6 +41,7 @@ export default async function PlayerPage({ params, searchParams }: PlayerPagePro
         <ProfileHeader player={player} />
         <RatingHistoryChart player={player} />
         <ColorBreakdown player={player} />
+        <TimeScrambleChart player={player} />
         <TiltAnalyticsView player={player} />
         <OpeningStatsTable player={player} />
         <PlayerGamesList games={games} currentUsername={player.username} />
