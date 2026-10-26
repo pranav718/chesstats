@@ -12,6 +12,8 @@ import { PlaybackControls } from '@/components/analysis/PlaybackControls';
 import { AccuracyBreakdown } from '@/components/analysis/AccuracyBreakdown';
 import { BlunderMotifs } from '@/components/analysis/BlunderMotifs';
 import { MoveList } from '@/components/MoveList';
+import { EngineSettings } from '@/components/analysis/EngineSettings';
+import { ArrowData } from '@/components/ChessboardArrows';
 import { STARTING_FEN } from '@/lib/constants';
 
 interface AnalysisStudioProps {
@@ -21,7 +23,8 @@ interface AnalysisStudioProps {
 export function AnalysisStudio({ game }: AnalysisStudioProps) {
   const [currentPly, setCurrentPly] = useState(0);
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
-  const [activeTab, setActiveTab] = useState<'review' | 'moves' | 'accuracy' | 'motifs'>('review');
+  const [activeTab, setActiveTab] = useState<'review' | 'moves' | 'accuracy' | 'motifs' | 'engine'>('review');
+  const [boardArrows, setBoardArrows] = useState<ArrowData[]>([]);
 
   const currentMove = currentPly > 0 ? game.moves[currentPly - 1] : undefined;
   const currentFen = currentMove?.fen || STARTING_FEN;
@@ -87,6 +90,12 @@ export function AnalysisStudio({ game }: AnalysisStudioProps) {
           >
             Tactical Motifs
           </button>
+          <button
+            onClick={() => setActiveTab('engine')}
+            className={`${styles.tabBtn} ${activeTab === 'engine' ? styles.activeTabBtn : ''}`}
+          >
+            Engine Lines
+          </button>
         </div>
       </div>
 
@@ -103,6 +112,7 @@ export function AnalysisStudio({ game }: AnalysisStudioProps) {
               fen={currentFen}
               orientation={orientation}
               lastMoveSquares={[]}
+              arrows={boardArrows}
             />
 
             <PlaybackControls
@@ -141,6 +151,13 @@ export function AnalysisStudio({ game }: AnalysisStudioProps) {
 
           {activeTab === 'motifs' && (
             <BlunderMotifs game={game} />
+          )}
+
+          {activeTab === 'engine' && (
+            <EngineSettings
+              fen={currentFen}
+              onArrowsChange={setBoardArrows}
+            />
           )}
         </div>
       </div>
