@@ -3,6 +3,7 @@ import { getGrandmasterByUsername, GRANDMASTERS } from './data/grandmasters';
 import { SAMPLE_GAMES } from './data/sampleGames';
 import { fetchChesscomUser, fetchChesscomRecentGames } from './api/chesscom';
 import { fetchLichessUser, fetchLichessRecentGames } from './api/lichess';
+import { calculateTiltAnalytics } from './tiltTelemetry';
 
 export async function getPlayerProfile(username: string, platform: Platform = 'chesscom'): Promise<PlayerProfile | null> {
   const gm = getGrandmasterByUsername(username);
@@ -78,34 +79,7 @@ export async function getHeadToHead(player1Name: string, player2Name: string): P
   };
 }
 
-export function getPlayerTiltAnalytics(username: string): TiltAnalytics {
-  const hash = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const score = (hash % 60) + 20;
-
-  let level: TiltAnalytics['level'] = 'optimal';
-  let advice = 'You are playing with exceptional focus and disciplined time management.';
-
-  if (score > 70) {
-    level = 'severe';
-    advice = 'High tilt detected: Significant rating drops and speed play in losing positions. Taking a 30-minute break is strongly recommended.';
-  } else if (score > 50) {
-    level = 'high';
-    advice = 'Elevated blunder rate in endgames and time scrambles. Focus on basic piece safety and slow down in critical moments.';
-  } else if (score > 35) {
-    level = 'moderate';
-    advice = 'Slight loss streak detected. Stick to your core opening repertoire and avoid blitzing opening traps.';
-  }
-
-  return {
-    score,
-    level,
-    currentStreak: {
-      type: score > 50 ? 'loss' : 'win',
-      count: (hash % 4) + 1,
-    },
-    peakTiltHours: ['23:00 - 02:00', '02:00 - 04:00'],
-    timeTroubleBlunderRate: Math.round(((hash % 30) + 15) * 10) / 10,
-    ratingVarianceLast30Days: (hash % 120) + 40,
-    advice,
-  };
+export function getPlayerTiltAnalytics(username: string, games?: ChessGame[]): TiltAnalytics {
+  const gamesToInspect = games || SAMPLE_GAMES;
+  return calculateTiltAnalytics(username, gamesToInspect);
 }
