@@ -1,0 +1,61 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  isSquareAttacked,
+  findKingSquare,
+  isKingInCheck,
+  generateLegalMoves,
+  getGameState,
+  executeMoveOnFen,
+} from '@/lib/moveEngine';
+import { parseFen } from '@/lib/fenPgn';
+import { STARTING_FEN } from '@/lib/constants';
+
+describe('Chess Move Engine and Attack Matrix', () => {
+  it('findKingSquare accurately locates kings for both sides', () => {
+    const board = parseFen(STARTING_FEN);
+    assert.equal(findKingSquare(board, 'white'), 'e1');
+    assert.equal(findKingSquare(board, 'black'), 'e8');
+  });
+
+  it('isSquareAttacked correctly identifies tactical threats across ranks and diagonals', () => {
+    const board = parseFen(STARTING_FEN);
+    assert.equal(isSquareAttacked(board, 'e3', 'white'), true);
+    assert.equal(isSquareAttacked(board, 'd3', 'white'), true);
+    assert.equal(isSquareAttacked(board, 'f3', 'white'), true);
+    assert.equal(isSquareAttacked(board, 'e4', 'white'), false);
+    assert.equal(isSquareAttacked(board, 'e6', 'black'), true);
+  });
+
+  it('generateLegalMoves calculates exactly 20 starting moves for White', () => {
+    const legalMoves = generateLegalMoves(STARTING_FEN);
+    assert.equal(legalMoves.length, 20);
+    const knightMoves = legalMoves.filter((m) => m.piece.toLowerCase() === 'n');
+    assert.equal(knightMoves.length, 4);
+    const pawnMoves = legalMoves.filter((m) => m.piece.toLowerCase() === 'p');
+    assert.equal(pawnMoves.length, 16);
+  });
+
+  it('isKingInCheck detects checks accurately', () => {
+    assert.equal(isKingInCheck(STARTING_FEN, 'white'), false);
+    assert.equal(isKingInCheck(STARTING_FEN, 'black'), false);
+
+    const checkedFen = 'rnb1kbnr/pppp1ppp/8/4p3/5PPq/8/PPPPP2P/RNBQKBNR w KQkq - 1 3';
+    assert.equal(isKingInCheck(checkedFen, 'white'), true);
+  });
+
+  it('getGameState identifies checkmate in Scholar Mate', () => {
+    const scholarsMateFen = 'r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4';
+    assert.equal(getGameState(scholarsMateFen), 'checkmate');
+  });
+
+  it('getGameState identifies stalemate correctly', () => {
+    const stalemateFen = 'k7/8/1Q6/8/8/8/8/7K b - - 0 1';
+    assert.equal(getGameState(stalemateFen), 'stalemate');
+  });
+
+  it('executeMoveOnFen updates board and increments move turn', () => {
+    const nextFen = executeMoveOnFen(STARTING_FEN, 'e2', 'e4');
+    assert.ok(nextFen.startsWith('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b'));
+  });
+});
