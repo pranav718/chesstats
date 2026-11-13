@@ -12,7 +12,13 @@ export interface MoveStep {
   isEnPassant?: boolean;
 }
 
-export type GameTerminationState = 'active' | 'check' | 'checkmate' | 'stalemate';
+export type GameTerminationState =
+  | 'active'
+  | 'check'
+  | 'checkmate'
+  | 'stalemate'
+  | 'insufficient_material'
+  | 'fifty_moves_rule';
 
 const KNIGHT_DELTAS: [number, number][] = [
   [-2, -1], [-2, 1], [-1, -2], [-1, 2],
@@ -413,7 +419,52 @@ export function generateLegalMoves(fen: string): MoveStep[] {
   return legalMoves;
 }
 
+export function isInsufficientMaterial(fen: string): boolean {
+  const board = parseFen(fen);
+  const whiteBishops: { r: number; c: number }[] = [];
+  const blackBishops: { r: number; c: number }[] = [];
+  let whiteKnights = 0;
+  let blackKnights = 0;
+  let otherPieces = 0;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p || p.toLowerCase() === 'k') continue;
+      if (p === 'B') whiteBishops.push({ r, c });
+      else if (p === 'b') blackBishops.push({ r, c });
+      else if (p === 'N') whiteKnights++;
+      else if (p === 'n') blackKnights++;
+      else otherPieces++;
+    }
+  }
+
+  if (otherPieces > 0) return false;
+
+  const totalMinors = whiteBishops.length + blackBishops.length + whiteKnights + blackKnights;
+  if (totalMinors === 0) return true;
+  if (totalMinors === 1) return true;
+
+  if (whiteBishops.length === 1 && blackBishops.length === 1 && whiteKnights === 0 && blackKnights === 0) {
+    const wbIsLight = (whiteBishops[0].r + whiteBishops[0].c) % 2 === 0;
+    const bbIsLight = (blackBishops[0].r + blackBishops[0].c) % 2 === 0;
+    if (wbIsLight === bbIsLight) return true;
+  }
+
+  return false;
+}
+
 export function getGameState(fen: string): GameTerminationState {
+  const parts = fen.trim().split(/\s+/);
+  const halfmove = parts[4] ? parseInt(parts[4], 10) : 0;
+  if (halfmove >= 100) {
+    return 'fifty_moves_rule';
+  }
+
+  if (isInsufficientMaterial(fen)) {
+    return 'insufficient_material';
+  }
+
   const turn = getTurnFromFen(fen);
   const inCheck = isKingInCheck(fen, turn);
   const legalMoves = generateLegalMoves(fen);

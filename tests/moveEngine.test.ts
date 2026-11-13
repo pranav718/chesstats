@@ -7,6 +7,7 @@ import {
   generateLegalMoves,
   getGameState,
   executeMoveOnFen,
+  isInsufficientMaterial,
 } from '@/lib/moveEngine';
 import { parseFen } from '@/lib/fenPgn';
 import { STARTING_FEN } from '@/lib/constants';
@@ -77,6 +78,21 @@ describe('Chess Move Engine and Attack Matrix', () => {
 
     const nextFen = executeMoveOnFen(enPassantFen, 'e5', 'f6');
     assert.ok(nextFen.startsWith('rnbqkbnr/ppp1p1pp/5P2/3p4/8/8/PPPP1PPP/RNBQKBNR b'));
+  });
+
+  it('isInsufficientMaterial accurately adjudicates bare king and minor piece dead positions', () => {
+    assert.equal(isInsufficientMaterial('4k3/8/8/8/8/8/8/4K3 w - - 0 1'), true);
+    assert.equal(isInsufficientMaterial('4k3/8/8/8/8/8/8/4KB2 w - - 0 1'), true);
+    assert.equal(isInsufficientMaterial('4k3/8/8/8/8/8/8/4KN2 w - - 0 1'), true);
+    assert.equal(isInsufficientMaterial('4k3/8/8/8/8/8/4P3/4K3 w - - 0 1'), false);
+    assert.equal(isInsufficientMaterial('4k3/8/8/8/8/8/4R3/4K3 w - - 0 1'), false);
+
+    assert.equal(getGameState('4k3/8/8/8/8/8/8/4K3 w - - 0 1'), 'insufficient_material');
+  });
+
+  it('getGameState adjudicates fifty moves rule draws', () => {
+    const fiftyMovesFen = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 100 50';
+    assert.equal(getGameState(fiftyMovesFen), 'fifty_moves_rule');
   });
 
   it('executeMoveOnFen updates board and increments move turn', () => {
