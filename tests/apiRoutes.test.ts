@@ -94,5 +94,20 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.ok(Array.isArray(data.games));
     assert.ok(data.tilt !== undefined);
     assert.ok(data.tilt.score >= 0);
+    assert.ok(data.telemetry !== undefined);
+    assert.ok(data.telemetry.totalGames >= 0);
+    assert.ok(data.telemetry.averageCaps >= 0);
+  });
+
+  it('GET /api/player/[username] calculates comprehensive telemetry accurately', async () => {
+    const req = new Request('http://localhost:3000/api/player/hikaru');
+    const res = await playerHandler(req, { params: Promise.resolve({ username: 'hikaru' }) });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(data.telemetry);
+    assert.ok(data.telemetry.winRate >= 0 && data.telemetry.winRate <= 100);
+    assert.ok(data.telemetry.averageAccuracy >= 0 && data.telemetry.averageAccuracy <= 100);
+    assert.ok(typeof data.telemetry.favoriteOpening === 'string');
+    assert.ok(data.telemetry.blundersPerGame >= 0);
   });
 });

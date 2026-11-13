@@ -176,3 +176,18 @@ export interface SquareHeatmapData {
   intensity: number;
   dominantPiece?: string;
 }
+
+export interface PlayerComprehensiveTelemetry {
+  totalGames: number;
+  whiteGames: number;
+  blackGames: number;
+  winRate: number;
+  whiteWinRate: number;
+  blackWinRate: number;
+  averageAccuracy: number;
+  averageCaps: number;
+  averageAcpl: number;
+  blundersPerGame: number;
+  favoriteOpening: string;
+  timeClassBreakdown: Partial<Record<TimeClass, { games: number; winRate: number }>>;
+}

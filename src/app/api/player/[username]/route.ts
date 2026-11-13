@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPlayerProfile, getPlayerGames, getPlayerTiltAnalytics } from '@/lib/chessService';
+import { getPlayerProfile, getPlayerGames, getPlayerTiltAnalytics, computePlayerComprehensiveTelemetry } from '@/lib/chessService';
 import { Platform } from '@/types/chess';
 
 export async function GET(
@@ -47,11 +47,13 @@ export async function GET(
 
     const games = await getPlayerGames(trimmedUser, platform);
     const tilt = getPlayerTiltAnalytics(trimmedUser, games);
+    const telemetry = computePlayerComprehensiveTelemetry(trimmedUser, games);
 
     return NextResponse.json({
       profile,
       games,
       tilt,
+      telemetry,
     });
   } catch {
     return NextResponse.json(

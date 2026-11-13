@@ -1,9 +1,10 @@
-import { PlayerProfile, ChessGame, Platform, HeadToHeadStats, TiltAnalytics } from '@/types/chess';
+import { PlayerProfile, ChessGame, Platform, HeadToHeadStats, TiltAnalytics, PlayerComprehensiveTelemetry, TimeClass } from '@/types/chess';
 import { getGrandmasterByUsername, GRANDMASTERS } from './data/grandmasters';
 import { SAMPLE_GAMES } from './data/sampleGames';
 import { fetchChesscomUser, fetchChesscomRecentGames } from './api/chesscom';
 import { fetchLichessUser, fetchLichessRecentGames } from './api/lichess';
 import { calculateTiltAnalytics } from './tiltTelemetry';
+import { calculateGameAccuracy } from './accuracy';
 
 export async function getPlayerProfile(username: string, platform: Platform = 'chesscom'): Promise<PlayerProfile | null> {
   const gm = getGrandmasterByUsername(username);
@@ -82,4 +83,120 @@ export async function getHeadToHead(player1Name: string, player2Name: string): P
 export function getPlayerTiltAnalytics(username: string, games?: ChessGame[]): TiltAnalytics {
   const gamesToInspect = games || SAMPLE_GAMES;
   return calculateTiltAnalytics(username, gamesToInspect);
+}
+
+export function computePlayerComprehensiveTelemetry(
+  username: string,
+  games: ChessGame[]
+): PlayerComprehensiveTelemetry {
+  const norm = username.trim().toLowerCase();
+  const relevantGames = games.filter(
+    (g) => g.white.username.toLowerCase() === norm || g.black.username.toLowerCase() === norm
+  );
+
+  const inspectedGames = relevantGames.length > 0 ? relevantGames : games;
+
+  let totalGames = 0;
+  let whiteGames = 0;
+  let blackGames = 0;
+  let totalWins = 0;
+  let whiteWins = 0;
+  let blackWins = 0;
+  let totalAccuracy = 0;
+  let totalCaps = 0;
+  let totalAcpl = 0;
+  let totalBlunders = 0;
+
+  const openingCounts = new Map<string, number>();
+  const timeClassStats = new Map<TimeClass, { games: number; wins: number }>();
+
+  for (const game of inspectedGames) {
+    const isWhite = game.white.username.toLowerCase() === norm;
+    const isBlack = game.black.username.toLowerCase() === norm;
+    if (!isWhite && !isBlack) continue;
+
+    totalGames++;
+    if (isWhite) whiteGames++;
+    if (isBlack) blackGames++;
+
+    const isWin =
+      (isWhite && (game.winner === 'white' || game.white.result === 'win' || game.result === '1-0')) ||
+      (isBlack && (game.winner === 'black' || game.black.result === 'win' || game.result === '0-1'));
+
+    if (isWin) {
+      totalWins++;
+      if (isWhite) whiteWins++;
+      if (isBlack) blackWins++;
+    }
+
+    if (game.openingName) {
+      openingCounts.set(game.openingName, (openingCounts.get(game.openingName) || 0) + 1);
+    }
+
+    if (game.timeClass) {
+      const tc = timeClassStats.get(game.timeClass) || { games: 0, wins: 0 };
+      tc.games++;
+      if (isWin) tc.wins++;
+      timeClassStats.set(game.timeClass, tc);
+    }
+
+    if (game.moves && game.moves.length > 0) {
+      const moveEvals = game.moves.map((m, idx) => ({
+        beforeEval: idx === 0 ? 20 : game.moves[idx - 1].evaluation,
+        afterEval: m.evaluation,
+        playedBy: m.playedBy,
+      }));
+      const acc = calculateGameAccuracy(moveEvals);
+      if (isWhite) {
+        totalAccuracy += acc.whiteAccuracy;
+        totalCaps += acc.whiteCaps;
+        totalAcpl += acc.whiteAcpl;
+        totalBlunders += acc.whiteBlunders;
+      } else {
+        totalAccuracy += acc.blackAccuracy;
+        totalCaps += acc.blackCaps;
+        totalAcpl += acc.blackAcpl;
+        totalBlunders += acc.blackBlunders;
+      }
+    } else {
+      const fallbackAcc = isWhite ? game.accuracy?.white ?? 85 : game.accuracy?.black ?? 85;
+      const fallbackAcpl = isWhite ? game.acpl?.white ?? 30 : game.acpl?.black ?? 30;
+      totalAccuracy += fallbackAcc;
+      totalCaps += fallbackAcc;
+      totalAcpl += fallbackAcpl;
+    }
+  }
+
+  const safeTotal = totalGames > 0 ? totalGames : 1;
+  let favoriteOpening = 'N/A';
+  let highestOpeningCount = 0;
+  for (const [opening, count] of openingCounts.entries()) {
+    if (count > highestOpeningCount) {
+      highestOpeningCount = count;
+      favoriteOpening = opening;
+    }
+  }
+
+  const timeClassBreakdown: Partial<Record<TimeClass, { games: number; winRate: number }>> = {};
+  for (const [tc, data] of timeClassStats.entries()) {
+    timeClassBreakdown[tc] = {
+      games: data.games,
+      winRate: Math.round((data.wins / (data.games > 0 ? data.games : 1)) * 1000) / 10,
+    };
+  }
+
+  return {
+    totalGames,
+    whiteGames,
+    blackGames,
+    winRate: Math.round((totalWins / safeTotal) * 1000) / 10,
+    whiteWinRate: whiteGames > 0 ? Math.round((whiteWins / whiteGames) * 1000) / 10 : 0,
+    blackWinRate: blackGames > 0 ? Math.round((blackWins / blackGames) * 1000) / 10 : 0,
+    averageAccuracy: Math.round((totalAccuracy / safeTotal) * 10) / 10,
+    averageCaps: Math.round((totalCaps / safeTotal) * 10) / 10,
+    averageAcpl: Math.round(totalAcpl / safeTotal),
+    blundersPerGame: Math.round((totalBlunders / safeTotal) * 100) / 100,
+    favoriteOpening,
+    timeClassBreakdown,
+  };
 }
