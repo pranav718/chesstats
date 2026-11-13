@@ -54,8 +54,34 @@ describe('Chess Move Engine and Attack Matrix', () => {
     assert.equal(getGameState(stalemateFen), 'stalemate');
   });
 
+  it('generateLegalMoves includes kingside and queenside castling when squares are open', () => {
+    const whiteCanCastleFen = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+    const moves = generateLegalMoves(whiteCanCastleFen);
+    const castlingMoves = moves.filter((m) => m.isCastling);
+    assert.equal(castlingMoves.length, 2);
+    assert.ok(castlingMoves.some((m) => m.from === 'e1' && m.to === 'g1'));
+    assert.ok(castlingMoves.some((m) => m.from === 'e1' && m.to === 'c1'));
+
+    const castledFen = executeMoveOnFen(whiteCanCastleFen, 'e1', 'g1');
+    assert.ok(castledFen.includes('R4RK1'));
+    assert.ok(!castledFen.includes('KQ'));
+  });
+
+  it('generateLegalMoves includes en passant capture when en passant square is set', () => {
+    const enPassantFen = 'rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3';
+    const moves = generateLegalMoves(enPassantFen);
+    const epMove = moves.find((m) => m.isEnPassant);
+    assert.ok(epMove !== undefined);
+    assert.equal(epMove.from, 'e5');
+    assert.equal(epMove.to, 'f6');
+
+    const nextFen = executeMoveOnFen(enPassantFen, 'e5', 'f6');
+    assert.ok(nextFen.startsWith('rnbqkbnr/ppp1p1pp/5P2/3p4/8/8/PPPP1PPP/RNBQKBNR b'));
+  });
+
   it('executeMoveOnFen updates board and increments move turn', () => {
     const nextFen = executeMoveOnFen(STARTING_FEN, 'e2', 'e4');
     assert.ok(nextFen.startsWith('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b'));
+    assert.ok(nextFen.includes('e3'));
   });
 });
