@@ -4,11 +4,24 @@ import {
   evaluatePositionLines,
   formatEngineScore,
   detectTacticalMotifs,
+  evaluateBoardPositionalScore,
   DEFAULT_ENGINE_CONFIG,
 } from '@/lib/engineSimulator';
 import { STARTING_FEN } from '@/lib/constants';
 
 describe('Multi-PV Engine and Tactical Motifs Simulator', () => {
+  it('evaluateBoardPositionalScore scores material and piece placement', () => {
+    const startingEval = evaluateBoardPositionalScore(STARTING_FEN);
+    assert.equal(startingEval.materialScore, 0);
+    assert.equal(startingEval.positionalScore, 0);
+    assert.equal(startingEval.totalScore, 0);
+
+    const whiteCenterPawnFen = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1';
+    const centerEval = evaluateBoardPositionalScore(whiteCenterPawnFen);
+    assert.ok(centerEval.positionalScore > 0);
+    assert.ok(centerEval.totalScore > 0);
+  });
+
   it('evaluatePositionLines returns requested number of ranked candidate lines', () => {
     const lines = evaluatePositionLines(STARTING_FEN, { multiPv: 3, depth: 20 });
     assert.equal(lines.length, 3);

@@ -4,6 +4,7 @@ import {
   evalToWinProbability,
   classifyMove,
   calculateMoveAccuracy,
+  calculateCapsMovePrecision,
   calculateMedian,
   calculateGameAccuracy,
   calculatePerformanceRating,
@@ -47,10 +48,24 @@ describe('Accuracy and Evaluation Engine', () => {
     assert.equal(calculateMedian([10, 40, 20, 30]), 25);
   });
 
+  it('calculateCapsMovePrecision computes calibrated harmonic precision scores', () => {
+    assert.equal(calculateCapsMovePrecision(50, 50), 100);
+    const smallLoss = calculateCapsMovePrecision(60, 58);
+    assert.ok(smallLoss > 85);
+
+    const moderateLoss = calculateCapsMovePrecision(70, 55);
+    assert.ok(moderateLoss < 50 && moderateLoss > 15);
+
+    const blunderLoss = calculateCapsMovePrecision(80, 20);
+    assert.ok(blunderLoss < 15);
+  });
+
   it('calculateGameAccuracy computes full game statistics', () => {
     const emptyResult = calculateGameAccuracy([]);
     assert.equal(emptyResult.whiteAccuracy, 100);
     assert.equal(emptyResult.blackAccuracy, 100);
+    assert.equal(emptyResult.whiteCaps, 100);
+    assert.equal(emptyResult.blackCaps, 100);
     assert.equal(emptyResult.whiteAcpl, 0);
     assert.equal(emptyResult.blackAcpl, 0);
 
@@ -64,6 +79,8 @@ describe('Accuracy and Evaluation Engine', () => {
     const result = calculateGameAccuracy(moves);
     assert.ok(result.whiteAccuracy > 90);
     assert.ok(result.blackAccuracy < 70);
+    assert.ok(result.whiteCaps > 90);
+    assert.ok(result.blackCaps < 60);
     assert.equal(result.blackBlunders, 1);
     assert.equal(result.whiteBlunders, 0);
     assert.ok(result.blackAcpl > result.whiteAcpl);

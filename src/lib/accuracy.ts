@@ -49,6 +49,13 @@ export function calculateMoveAccuracy(winProbBefore: number, winProbAfter: numbe
   return Math.max(0, Math.min(100, Math.round(accuracy * 10) / 10));
 }
 
+export function calculateCapsMovePrecision(winProbBefore: number, winProbAfter: number): number {
+  const loss = Math.max(0, winProbBefore - winProbAfter);
+  if (loss <= 0.1) return 100;
+  const precision = 100 / (1 + Math.pow(loss / 7.2, 1.45));
+  return Math.max(0, Math.min(100, Math.round(precision * 10) / 10));
+}
+
 export function calculateMedian(numbers: number[]): number {
   if (numbers.length === 0) return 0;
   const sorted = [...numbers].sort((a, b) => a - b);
@@ -62,6 +69,8 @@ export function calculateMedian(numbers: number[]): number {
 export interface GameAccuracyResult {
   whiteAccuracy: number;
   blackAccuracy: number;
+  whiteCaps: number;
+  blackCaps: number;
   whiteAcpl: number;
   blackAcpl: number;
   whiteMcpl: number;
@@ -77,6 +86,8 @@ export function calculateGameAccuracy(
   const blackLosses: number[] = [];
   const whiteAccuracies: number[] = [];
   const blackAccuracies: number[] = [];
+  const whiteCapsScores: number[] = [];
+  const blackCapsScores: number[] = [];
   let whiteBlunders = 0;
   let blackBlunders = 0;
 
@@ -90,15 +101,18 @@ export function calculateGameAccuracy(
     const cpLoss = Math.max(0, before - after);
 
     const accuracy = calculateMoveAccuracy(probBefore, probAfter);
+    const caps = calculateCapsMovePrecision(probBefore, probAfter);
     const classification = classifyMove(move.beforeEval, move.afterEval, move.playedBy, move.isSacrifice);
 
     if (isWhite) {
       whiteLosses.push(cpLoss);
       whiteAccuracies.push(accuracy);
+      whiteCapsScores.push(caps);
       if (classification === 'blunder') whiteBlunders++;
     } else {
       blackLosses.push(cpLoss);
       blackAccuracies.push(accuracy);
+      blackCapsScores.push(caps);
       if (classification === 'blunder') blackBlunders++;
     }
   }
@@ -109,6 +123,8 @@ export function calculateGameAccuracy(
   return {
     whiteAccuracy: Math.round(avg(whiteAccuracies, 100) * 10) / 10,
     blackAccuracy: Math.round(avg(blackAccuracies, 100) * 10) / 10,
+    whiteCaps: Math.round(avg(whiteCapsScores, 100) * 10) / 10,
+    blackCaps: Math.round(avg(blackCapsScores, 100) * 10) / 10,
     whiteAcpl: Math.round(avg(whiteLosses, 0)),
     blackAcpl: Math.round(avg(blackLosses, 0)),
     whiteMcpl: calculateMedian(whiteLosses),

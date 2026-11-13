@@ -8,9 +8,17 @@ export interface MoveStep {
   captured?: string;
   promotion?: string;
   isCheck?: boolean;
+  isCastling?: boolean;
+  isEnPassant?: boolean;
 }
 
-export type GameTerminationState = 'active' | 'check' | 'checkmate' | 'stalemate';
+export type GameTerminationState =
+  | 'active'
+  | 'check'
+  | 'checkmate'
+  | 'stalemate'
+  | 'insufficient_material'
+  | 'fifty_moves_rule';
 
 const KNIGHT_DELTAS: [number, number][] = [
   [-2, -1], [-2, 1], [-1, -2], [-1, 2],
@@ -171,13 +179,47 @@ export function makeHypotheticalMove(
   const newBoard = board.map((row) => [...row]);
   const movingPiece = newBoard[fr][fc];
   newBoard[fr][fc] = null;
+
+  if (movingPiece === 'K' && from === 'e1' && to === 'g1') {
+    newBoard[7][6] = 'K';
+    newBoard[7][7] = null;
+    newBoard[7][5] = 'R';
+    return newBoard;
+  }
+  if (movingPiece === 'K' && from === 'e1' && to === 'c1') {
+    newBoard[7][2] = 'K';
+    newBoard[7][0] = null;
+    newBoard[7][3] = 'R';
+    return newBoard;
+  }
+  if (movingPiece === 'k' && from === 'e8' && to === 'g8') {
+    newBoard[0][6] = 'k';
+    newBoard[0][7] = null;
+    newBoard[0][5] = 'r';
+    return newBoard;
+  }
+  if (movingPiece === 'k' && from === 'e8' && to === 'c8') {
+    newBoard[0][2] = 'k';
+    newBoard[0][0] = null;
+    newBoard[0][3] = 'r';
+    return newBoard;
+  }
+
+  if (movingPiece?.toLowerCase() === 'p' && fc !== tc && !newBoard[tr][tc]) {
+    newBoard[fr][tc] = null;
+  }
+
   newBoard[tr][tc] = promotionPiece ? promotionPiece : movingPiece;
   return newBoard;
 }
 
 export function generatePseudoLegalMoves(fen: string): MoveStep[] {
+  const parts = fen.trim().split(/\s+/);
   const board = parseFen(fen);
   const turn = getTurnFromFen(fen);
+  const castlingPart = parts[2] || '-';
+  const enPassantPart = parts[3] || '-';
+  const opponentColor: PieceColor = turn === 'white' ? 'black' : 'white';
   const moves: MoveStep[] = [];
 
   for (let r = 0; r < 8; r++) {
@@ -219,8 +261,8 @@ export function generatePseudoLegalMoves(fen: string): MoveStep[] {
           const capC = c + dc;
           if (isInsideBoard(capR, capC)) {
             const target = board[capR][capC];
+            const to = coordsToSquare(capR, capC);
             if (target && getPieceColor(target) !== turn) {
-              const to = coordsToSquare(capR, capC);
               if (capR === promoRow) {
                 for (const promo of ['q', 'r', 'b', 'n']) {
                   moves.push({
@@ -234,6 +276,14 @@ export function generatePseudoLegalMoves(fen: string): MoveStep[] {
               } else {
                 moves.push({ from, to, piece, captured: target });
               }
+            } else if (!target && enPassantPart !== '-' && to === enPassantPart) {
+              moves.push({
+                from,
+                to,
+                piece,
+                captured: turn === 'white' ? 'p' : 'P',
+                isEnPassant: true,
+              });
             }
           }
         }
@@ -267,6 +317,56 @@ export function generatePseudoLegalMoves(fen: string): MoveStep[] {
                 captured: target || undefined,
               });
             }
+          }
+        }
+
+        if (turn === 'white' && r === 7 && c === 4) {
+          if (
+            castlingPart.includes('K') &&
+            !board[7][5] &&
+            !board[7][6] &&
+            board[7][7] === 'R' &&
+            !isSquareAttacked(board, 'e1', opponentColor) &&
+            !isSquareAttacked(board, 'f1', opponentColor) &&
+            !isSquareAttacked(board, 'g1', opponentColor)
+          ) {
+            moves.push({ from: 'e1', to: 'g1', piece: 'K', isCastling: true });
+          }
+          if (
+            castlingPart.includes('Q') &&
+            !board[7][3] &&
+            !board[7][2] &&
+            !board[7][1] &&
+            board[7][0] === 'R' &&
+            !isSquareAttacked(board, 'e1', opponentColor) &&
+            !isSquareAttacked(board, 'd1', opponentColor) &&
+            !isSquareAttacked(board, 'c1', opponentColor)
+          ) {
+            moves.push({ from: 'e1', to: 'c1', piece: 'K', isCastling: true });
+          }
+        } else if (turn === 'black' && r === 0 && c === 4) {
+          if (
+            castlingPart.includes('k') &&
+            !board[0][5] &&
+            !board[0][6] &&
+            board[0][7] === 'r' &&
+            !isSquareAttacked(board, 'e8', opponentColor) &&
+            !isSquareAttacked(board, 'f8', opponentColor) &&
+            !isSquareAttacked(board, 'g8', opponentColor)
+          ) {
+            moves.push({ from: 'e8', to: 'g8', piece: 'k', isCastling: true });
+          }
+          if (
+            castlingPart.includes('q') &&
+            !board[0][3] &&
+            !board[0][2] &&
+            !board[0][1] &&
+            board[0][0] === 'r' &&
+            !isSquareAttacked(board, 'e8', opponentColor) &&
+            !isSquareAttacked(board, 'd8', opponentColor) &&
+            !isSquareAttacked(board, 'c8', opponentColor)
+          ) {
+            moves.push({ from: 'e8', to: 'c8', piece: 'k', isCastling: true });
           }
         }
       } else {
@@ -319,7 +419,52 @@ export function generateLegalMoves(fen: string): MoveStep[] {
   return legalMoves;
 }
 
+export function isInsufficientMaterial(fen: string): boolean {
+  const board = parseFen(fen);
+  const whiteBishops: { r: number; c: number }[] = [];
+  const blackBishops: { r: number; c: number }[] = [];
+  let whiteKnights = 0;
+  let blackKnights = 0;
+  let otherPieces = 0;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (!p || p.toLowerCase() === 'k') continue;
+      if (p === 'B') whiteBishops.push({ r, c });
+      else if (p === 'b') blackBishops.push({ r, c });
+      else if (p === 'N') whiteKnights++;
+      else if (p === 'n') blackKnights++;
+      else otherPieces++;
+    }
+  }
+
+  if (otherPieces > 0) return false;
+
+  const totalMinors = whiteBishops.length + blackBishops.length + whiteKnights + blackKnights;
+  if (totalMinors === 0) return true;
+  if (totalMinors === 1) return true;
+
+  if (whiteBishops.length === 1 && blackBishops.length === 1 && whiteKnights === 0 && blackKnights === 0) {
+    const wbIsLight = (whiteBishops[0].r + whiteBishops[0].c) % 2 === 0;
+    const bbIsLight = (blackBishops[0].r + blackBishops[0].c) % 2 === 0;
+    if (wbIsLight === bbIsLight) return true;
+  }
+
+  return false;
+}
+
 export function getGameState(fen: string): GameTerminationState {
+  const parts = fen.trim().split(/\s+/);
+  const halfmove = parts[4] ? parseInt(parts[4], 10) : 0;
+  if (halfmove >= 100) {
+    return 'fifty_moves_rule';
+  }
+
+  if (isInsufficientMaterial(fen)) {
+    return 'insufficient_material';
+  }
+
   const turn = getTurnFromFen(fen);
   const inCheck = isKingInCheck(fen, turn);
   const legalMoves = generateLegalMoves(fen);
@@ -331,6 +476,35 @@ export function getGameState(fen: string): GameTerminationState {
   return inCheck ? 'check' : 'active';
 }
 
+function updateCastlingRights(
+  currentRights: string,
+  from: string,
+  to: string,
+  piece: string
+): string {
+  if (currentRights === '-') return '-';
+  let rights = currentRights;
+
+  if (piece === 'K') {
+    rights = rights.replace('K', '').replace('Q', '');
+  } else if (piece === 'k') {
+    rights = rights.replace('k', '').replace('q', '');
+  } else if (piece === 'R') {
+    if (from === 'h1') rights = rights.replace('K', '');
+    if (from === 'a1') rights = rights.replace('Q', '');
+  } else if (piece === 'r') {
+    if (from === 'h8') rights = rights.replace('k', '');
+    if (from === 'a8') rights = rights.replace('q', '');
+  }
+
+  if (to === 'h1') rights = rights.replace('K', '');
+  if (to === 'a1') rights = rights.replace('Q', '');
+  if (to === 'h8') rights = rights.replace('k', '');
+  if (to === 'a8') rights = rights.replace('q', '');
+
+  return rights.length > 0 ? rights : '-';
+}
+
 export function executeMoveOnFen(
   fen: string,
   from: string,
@@ -340,14 +514,30 @@ export function executeMoveOnFen(
   const parts = fen.trim().split(/\s+/);
   const board = parseFen(fen);
   const turn = getTurnFromFen(fen);
+  const { row: fr } = squareToCoords(from);
+  const { row: tr } = squareToCoords(to);
+  const movingPiece = board[fr][squareToCoords(from).col] || '';
+
   const nextBoard = makeHypotheticalMove(board, from, to, promotion);
   const nextBoardFen = boardToFenPart(nextBoard);
   const nextTurn = turn === 'white' ? 'b' : 'w';
 
-  const castling = parts[2] || '-';
-  const enPassant = '-';
-  const halfmove = parts[4] ? String(parseInt(parts[4], 10) + 1) : '0';
-  const fullmove = turn === 'black' && parts[5] ? String(parseInt(parts[5], 10) + 1) : parts[5] || '1';
+  const rawCastling = parts[2] || '-';
+  const nextCastling = updateCastlingRights(rawCastling, from, to, movingPiece);
 
-  return `${nextBoardFen} ${nextTurn} ${castling} ${enPassant} ${halfmove} ${fullmove}`;
+  let nextEnPassant = '-';
+  if (movingPiece.toLowerCase() === 'p' && Math.abs(fr - tr) === 2) {
+    const epRow = (fr + tr) / 2;
+    nextEnPassant = coordsToSquare(epRow, squareToCoords(from).col);
+  }
+
+  const isPawnMove = movingPiece.toLowerCase() === 'p';
+  const isCapture = Boolean(board[tr][squareToCoords(to).col]) || (isPawnMove && from[0] !== to[0]);
+  const prevHalfmove = parts[4] ? parseInt(parts[4], 10) : 0;
+  const nextHalfmove = isPawnMove || isCapture ? '0' : String(prevHalfmove + 1);
+
+  const prevFullmove = parts[5] ? parseInt(parts[5], 10) : 1;
+  const nextFullmove = turn === 'black' ? String(prevFullmove + 1) : String(prevFullmove);
+
+  return `${nextBoardFen} ${nextTurn} ${nextCastling} ${nextEnPassant} ${nextHalfmove} ${nextFullmove}`;
 }
