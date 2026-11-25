@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { parsePgn } from '@/lib/fenPgn';
-import { calculateGameAccuracy } from '@/lib/accuracy';
+import { analyzePgnGame, PgnReplayError } from '@/lib/pgnAnalyzer';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       );
     }
 
-    let body: { pgn?: unknown };
+    let body: { pgn?: unknown; depth?: unknown };
     try {
       body = await request.json();
     } catch {
@@ -37,6 +37,17 @@ export async function POST(request: Request) {
       );
     }
 
+    let parsedDepth = 1;
+    if (body?.depth !== undefined) {
+      if (typeof body.depth !== 'number' || isNaN(body.depth) || body.depth < 1) {
+        return NextResponse.json(
+          { error: 'Optional "depth" property must be a positive integer' },
+          { status: 400 }
+        );
+      }
+      parsedDepth = Math.min(3, Math.max(1, Math.floor(body.depth)));
+    }
+
     const parsed = parsePgn(pgn);
     if (!parsed.moves || parsed.moves.length === 0) {
       return NextResponse.json(
@@ -45,33 +56,26 @@ export async function POST(request: Request) {
       );
     }
 
-    let currentEval = 20;
-    const movesWithEval = parsed.moves.map((san, idx) => {
-      const isWhite = idx % 2 === 0;
-      const before = currentEval;
-      const shift = ((idx * 17 + san.length * 11) % 60) - 25;
-      currentEval += isWhite ? shift : -shift;
-      const after = currentEval;
-
-      return {
-        ply: idx + 1,
-        moveNumber: Math.floor(idx / 2) + 1,
-        san,
-        playedBy: isWhite ? ('white' as const) : ('black' as const),
-        beforeEval: before,
-        afterEval: after,
-      };
-    });
-
-    const accuracy = calculateGameAccuracy(movesWithEval);
-
-    return NextResponse.json({
-      headers: parsed.headers,
-      result: parsed.result,
-      totalMoves: parsed.moves.length,
-      accuracy,
-      moves: movesWithEval,
-    });
+    try {
+      const analysis = analyzePgnGame(pgn, { depth: parsedDepth });
+      return NextResponse.json({
+        headers: analysis.headers,
+        result: analysis.result,
+        opening: analysis.opening,
+        totalMoves: analysis.totalMoves,
+        accuracy: analysis.accuracy,
+        engineStats: analysis.engineStats,
+        moves: analysis.moves,
+      });
+    } catch (err) {
+      if (err instanceof PgnReplayError) {
+        return NextResponse.json(
+          { error: err.message, ply: err.ply, token: err.san },
+          { status: 422 }
+        );
+      }
+      throw err;
+    }
   } catch {
     return NextResponse.json(
       { error: 'Failed to process game analysis' },

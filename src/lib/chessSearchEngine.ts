@@ -99,32 +99,67 @@ export function quiescenceSearch(
   stats.quiescenceNodes++;
   stats.nodesSearched++;
 
-  const posBreakdown = evaluatePositionalFeatures(fen);
-  const standPat = turn === 'white' ? posBreakdown.totalScore : -posBreakdown.totalScore;
+  const inCheck = isKingInCheck(fen, turn);
 
-  if (standPat >= beta) {
-    return beta;
-  }
+  if (!inCheck) {
+    const posBreakdown = evaluatePositionalFeatures(fen);
+    const standPat = turn === 'white' ? posBreakdown.totalScore : -posBreakdown.totalScore;
 
-  if (standPat > alpha) {
-    alpha = standPat;
-  }
+    if (standPat >= beta) {
+      return beta;
+    }
 
-  if (depthRemaining <= 0) {
-    return standPat;
+    if (standPat > alpha) {
+      alpha = standPat;
+    }
+
+    if (depthRemaining <= 0) {
+      return standPat;
+    }
+
+    const legalMoves = generateLegalMoves(fen);
+    if (legalMoves.length === 0) {
+      return 0;
+    }
+
+    const captures = legalMoves.filter((m) => Boolean(m.captured) || Boolean(m.promotion));
+    if (captures.length === 0) {
+      return standPat;
+    }
+
+    const orderedCaptures = orderMoves(captures);
+
+    for (const capture of orderedCaptures) {
+      const nextFen = executeMoveOnFen(fen, capture.from, capture.to, capture.promotion);
+      const nextTurn = turn === 'white' ? 'black' : 'white';
+      const score = -quiescenceSearch(nextFen, -beta, -alpha, nextTurn, stats, depthRemaining - 1);
+
+      if (score >= beta) {
+        stats.betaCutoffs++;
+        return beta;
+      }
+
+      if (score > alpha) {
+        alpha = score;
+      }
+    }
+
+    return alpha;
   }
 
   const legalMoves = generateLegalMoves(fen);
-  const captures = legalMoves.filter((m) => Boolean(m.captured) || Boolean(m.promotion));
-
-  if (captures.length === 0) {
-    return standPat;
+  if (legalMoves.length === 0) {
+    return -20000;
   }
 
-  const orderedCaptures = orderMoves(captures);
+  if (depthRemaining <= 0) {
+    const posBreakdown = evaluatePositionalFeatures(fen);
+    return turn === 'white' ? posBreakdown.totalScore : -posBreakdown.totalScore;
+  }
 
-  for (const capture of orderedCaptures) {
-    const nextFen = executeMoveOnFen(fen, capture.from, capture.to, capture.promotion);
+  const orderedEvasions = orderMoves(legalMoves);
+  for (const move of orderedEvasions) {
+    const nextFen = executeMoveOnFen(fen, move.from, move.to, move.promotion);
     const nextTurn = turn === 'white' ? 'black' : 'white';
     const score = -quiescenceSearch(nextFen, -beta, -alpha, nextTurn, stats, depthRemaining - 1);
 
@@ -184,7 +219,12 @@ export function negamax(
   }
 
   if (depth <= 0) {
-    return quiescenceSearch(fen, alpha, beta, turn, stats);
+    const qOrigAlpha = alpha;
+    const qScore = quiescenceSearch(fen, alpha, beta, turn, stats);
+    const qNodeType: NodeType =
+      qScore <= qOrigAlpha ? 'upperbound' : qScore >= beta ? 'lowerbound' : 'exact';
+    table.set(fen, 0, qScore, qNodeType);
+    return qScore;
   }
 
   const legalMoves = generateLegalMoves(fen);

@@ -49,7 +49,7 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.ok(data.error.includes('no valid move tokens'));
   });
 
-  it('POST /api/analysis computes accuracy metrics for valid game PGN', async () => {
+  it('POST /api/analysis computes real accuracy, opening, and engine telemetry for valid game PGN', async () => {
     const pgn = `[Event "Live Chess"]
 [White "PlayerA"]
 [Black "PlayerB"]
@@ -66,9 +66,26 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.totalMoves, 8);
+    assert.equal(data.opening.eco, 'C60');
     assert.ok(data.accuracy.whiteAccuracy > 0);
     assert.ok(data.accuracy.blackAccuracy > 0);
+    assert.ok(data.engineStats.totalNodes > 0);
     assert.equal(data.moves.length, 8);
+    assert.ok(data.moves[7].fen.length > 20);
+    assert.equal(typeof data.moves[0].bestMoveSan, 'string');
+  });
+
+  it('POST /api/analysis rejects illegal move sequences with 422 and ply context', async () => {
+    const req = new Request('http://localhost:3000/api/analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pgn: '1. e4 e5 2. Nf3 Qxf7 1-0' }),
+    });
+    const res = await analysisHandler(req);
+    assert.equal(res.status, 422);
+    const data = await res.json();
+    assert.equal(data.ply, 4);
+    assert.equal(data.token, 'Qxf7');
   });
 
   it('GET /api/player/[username] validates username format and constraints', async () => {
@@ -99,7 +116,7 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.ok(data.telemetry.averageCaps >= 0);
   });
 
-  it('GET /api/player/[username] calculates comprehensive telemetry accurately', async () => {
+  it('GET /api/player/[username] calculates comprehensive telemetry, fairPlay, and repertoire summary', async () => {
     const req = new Request('http://localhost:3000/api/player/hikaru');
     const res = await playerHandler(req, { params: Promise.resolve({ username: 'hikaru' }) });
     assert.equal(res.status, 200);
@@ -109,5 +126,12 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.ok(data.telemetry.averageAccuracy >= 0 && data.telemetry.averageAccuracy <= 100);
     assert.ok(typeof data.telemetry.favoriteOpening === 'string');
     assert.ok(data.telemetry.blundersPerGame >= 0);
+    assert.ok(data.fairPlay !== undefined);
+    assert.ok(['clean', 'low', 'suspicious', 'anomalous'].includes(data.fairPlay.riskLevel));
+    assert.ok(data.fairPlay.timeEntropyIndex >= 10);
+    assert.ok(data.repertoire !== undefined);
+    assert.ok(data.repertoire.gamesIndexed >= 0);
+    assert.ok(Array.isArray(data.repertoire.whiteTopMoves));
+    assert.ok(Array.isArray(data.repertoire.blackTopMoves));
   });
 });

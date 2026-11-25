@@ -1,5 +1,7 @@
 import { PlayerProfile, ChessGame, RatingStats, TimeClass } from '@/types/chess';
 import { parsePgn } from '../fenPgn';
+import { hydrateParsedGameMoves } from '../pgnAnalyzer';
+import { classifyOpening } from '../ecoClassifier';
 
 const LICHESS_BASE_URL = 'https://lichess.org/api';
 
@@ -105,11 +107,17 @@ export async function fetchLichessRecentGames(username: string, max: number = 10
         else if (item.speed === 'classical') timeClass = 'classical';
         else if (item.speed === 'correspondence') timeClass = 'daily';
 
+        const hydratedMoves = hydrateParsedGameMoves(parsed.moves, parsed.headers['FEN']);
+        const inferredOpening =
+          !item.opening?.eco || !item.opening?.name
+            ? classifyOpening(parsed.moves)
+            : null;
+
         games.push({
           id: item.id,
           url: `https://lichess.org/${item.id}`,
           pgn: item.pgn || '',
-          fen: item.lastFen || '',
+          fen: hydratedMoves[hydratedMoves.length - 1]?.fen || item.lastFen || '',
           white: {
             username: whiteUser,
             rating: item.players?.white?.rating || 1500,
@@ -128,18 +136,9 @@ export async function fetchLichessRecentGames(username: string, max: number = 10
           result: isWhite ? '1-0' : isBlack ? '0-1' : '1/2-1/2',
           winner: isWhite ? 'white' : isBlack ? 'black' : undefined,
           winReason: item.status,
-          eco: item.opening?.eco,
-          openingName: item.opening?.name,
-          moves: parsed.moves.map((m, idx) => ({
-            ply: idx + 1,
-            moveNumber: Math.floor(idx / 2) + 1,
-            san: m,
-            uci: m,
-            fen: '',
-            evaluation: 0,
-            classification: 'good',
-            playedBy: idx % 2 === 0 ? 'white' : 'black',
-          })),
+          eco: item.opening?.eco || inferredOpening?.eco,
+          openingName: item.opening?.name || inferredOpening?.name,
+          moves: hydratedMoves,
           platform: 'lichess',
         });
       } catch {

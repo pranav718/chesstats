@@ -23,7 +23,20 @@ describe('Server-Sent Events Streaming Analysis API', () => {
     assert.equal(res.status, 422);
   });
 
-  it('streams progressive move analysis and complete event over SSE', async () => {
+  it('rejects PGN with illegal moves before streaming with 422', async () => {
+    const req = new Request('http://localhost:3000/api/analysis/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pgn: '1. e4 e5 2. Qxg7# 1-0' }),
+    });
+    const res = await streamHandler(req);
+    assert.equal(res.status, 422);
+    const data = await res.json();
+    assert.equal(data.ply, 3);
+    assert.equal(data.token, 'Qxg7#');
+  });
+
+  it('streams progressive move analysis with real FEN progression and complete event over SSE', async () => {
     const pgn = '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 1-0';
     const req = new Request('http://localhost:3000/api/analysis/stream', {
       method: 'POST',
@@ -55,5 +68,8 @@ describe('Server-Sent Events Streaming Analysis API', () => {
     assert.ok(accumulated.includes('event: complete'));
     assert.ok(accumulated.includes('"totalMoves":6'));
     assert.ok(accumulated.includes('"accuracy"'));
+    assert.ok(accumulated.includes('"engineStats"'));
+    assert.ok(accumulated.includes('"eco":"C60"'));
+    assert.ok(accumulated.includes('r1bqkbnr/1ppp1ppp/p1n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R'));
   });
 });

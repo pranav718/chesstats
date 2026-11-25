@@ -40,6 +40,16 @@ describe('Multi-PV Engine and Tactical Motifs Simulator', () => {
     assert.equal(lines[0].depth, DEFAULT_ENGINE_CONFIG.depth);
   });
 
+  it('evaluatePositionLines identifies legal tactical winning moves from search engine', () => {
+    const mateInOneFen = 'r1bqkb1r/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 4';
+    const lines = evaluatePositionLines(mateInOneFen, { multiPv: 2, depth: 2 });
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0].fromSquare, 'f3');
+    assert.equal(lines[0].toSquare, 'f7');
+    assert.ok(lines[0].score >= 9000);
+    assert.equal(formatEngineScore(lines[0].score), '+M1');
+  });
+
   it('formatEngineScore formats pawn evaluations and forced mate scores', () => {
     assert.equal(formatEngineScore(0), '0.00');
     assert.equal(formatEngineScore(150), '+1.50');

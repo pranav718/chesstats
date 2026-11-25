@@ -91,6 +91,7 @@ export class OpeningTreeBuilder {
 
     for (const move of moves) {
       const fen = move.fen;
+      if (!fen) continue;
       const hash = zobristHashToHex(computeZobristHash(fen));
       const san = move.san;
 
