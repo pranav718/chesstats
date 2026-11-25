@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { parsePgn } from '@/lib/fenPgn';
-import { calculateGameAccuracy } from '@/lib/accuracy';
-import { evaluatePositionLines } from '@/lib/engineSimulator';
 import { STARTING_FEN } from '@/lib/constants';
+import { classifyOpening } from '@/lib/ecoClassifier';
+import { analyzePgnGame, replayPgnMoves, PgnReplayError } from '@/lib/pgnAnalyzer';
 
 export async function POST(request: Request) {
   try {
-    let body: { pgn?: unknown };
+    let body: { pgn?: unknown; depth?: unknown };
     try {
       body = await request.json();
     } catch {
@@ -18,79 +18,78 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Valid PGN string is required in field "pgn"' }, { status: 400 });
     }
 
+    let parsedDepth = 1;
+    if (body?.depth !== undefined) {
+      if (typeof body.depth !== 'number' || isNaN(body.depth) || body.depth < 1) {
+        return NextResponse.json({ error: 'Optional "depth" property must be a positive integer' }, { status: 400 });
+      }
+      parsedDepth = Math.min(3, Math.max(1, Math.floor(body.depth)));
+    }
+
     const parsed = parsePgn(pgn);
     if (!parsed.moves || parsed.moves.length === 0) {
       return NextResponse.json({ error: 'PGN contains no valid move tokens' }, { status: 422 });
     }
 
-    const moves = parsed.moves;
+    const initialFen = parsed.headers['FEN'] || STARTING_FEN;
+    try {
+      replayPgnMoves(parsed.moves, initialFen);
+    } catch (err) {
+      if (err instanceof PgnReplayError) {
+        return NextResponse.json(
+          { error: err.message, ply: err.ply, token: err.san },
+          { status: 422 }
+        );
+      }
+      throw err;
+    }
+
+    const opening = classifyOpening(parsed.moves);
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
       start(controller) {
-        let currentEval = 20;
-        const movesWithEval: {
-          ply: number;
-          moveNumber: number;
-          san: string;
-          playedBy: 'white' | 'black';
-          beforeEval: number;
-          afterEval: number;
-        }[] = [];
-
         controller.enqueue(
           encoder.encode(
             `event: meta\ndata: ${JSON.stringify({
               headers: parsed.headers,
               result: parsed.result,
-              totalMoves: moves.length,
+              totalMoves: parsed.moves.length,
+              opening,
             })}\n\n`
           )
         );
 
-        for (let idx = 0; idx < moves.length; idx++) {
-          const san = moves[idx];
-          const isWhite = idx % 2 === 0;
-          const before = currentEval;
-          const shift = ((idx * 13 + san.length * 7) % 50) - 20;
-          currentEval += isWhite ? shift : -shift;
-          const after = currentEval;
-
-          const moveObj = {
-            ply: idx + 1,
-            moveNumber: Math.floor(idx / 2) + 1,
-            san,
-            playedBy: isWhite ? ('white' as const) : ('black' as const),
-            beforeEval: before,
-            afterEval: after,
-          };
-          movesWithEval.push(moveObj);
-
-          const lines = evaluatePositionLines(STARTING_FEN, { depth: 18, multiPv: 1 });
-          const topCandidate = lines[0];
-
-          controller.enqueue(
-            encoder.encode(
-              `event: move\ndata: ${JSON.stringify({
-                ply: idx + 1,
-                san,
-                evaluation: after,
-                bestMove: topCandidate?.pv?.[0] || 'e4',
-                depth: 18,
-                nodes: topCandidate?.nodes || 250000,
-              })}\n\n`
-            )
-          );
-        }
-
-        const accuracy = calculateGameAccuracy(movesWithEval);
+        const analysis = analyzePgnGame(pgn, {
+          depth: parsedDepth,
+          onMove: (move) => {
+            controller.enqueue(
+              encoder.encode(
+                `event: move\ndata: ${JSON.stringify({
+                  ply: move.ply,
+                  san: move.san,
+                  uci: move.uci,
+                  fen: move.fen,
+                  evaluation: move.evaluation,
+                  bestMove: move.bestMoveSan,
+                  classification: move.classification,
+                  motifs: move.motifs,
+                  depth: parsedDepth,
+                  nodes: move.nodes,
+                })}\n\n`
+              )
+            );
+          },
+        });
 
         controller.enqueue(
           encoder.encode(
             `event: complete\ndata: ${JSON.stringify({
-              accuracy,
-              totalMoves: moves.length,
-              result: parsed.result,
+              accuracy: analysis.accuracy,
+              opening: analysis.opening,
+              engineStats: analysis.engineStats,
+              totalMoves: analysis.totalMoves,
+              result: analysis.result,
             })}\n\n`
           )
         );
