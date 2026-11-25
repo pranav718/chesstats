@@ -1,10 +1,13 @@
-import { PlayerProfile, ChessGame, Platform, HeadToHeadStats, TiltAnalytics, PlayerComprehensiveTelemetry, TimeClass } from '@/types/chess';
+import { PlayerProfile, ChessGame, Platform, HeadToHeadStats, TiltAnalytics, PlayerComprehensiveTelemetry, PlayerRepertoireSummary, TimeClass } from '@/types/chess';
 import { getGrandmasterByUsername, GRANDMASTERS } from './data/grandmasters';
 import { SAMPLE_GAMES } from './data/sampleGames';
 import { fetchChesscomUser, fetchChesscomRecentGames } from './api/chesscom';
 import { fetchLichessUser, fetchLichessRecentGames } from './api/lichess';
 import { calculateTiltAnalytics } from './tiltTelemetry';
 import { calculateGameAccuracy } from './accuracy';
+import { assessFairPlayRisk, FairPlayReport } from './fairPlayTelemetry';
+import { buildOpeningTree } from './openingTree';
+import { STARTING_FEN } from './constants';
 
 export async function getPlayerProfile(username: string, platform: Platform = 'chesscom'): Promise<PlayerProfile | null> {
   const gm = getGrandmasterByUsername(username);
@@ -198,5 +201,39 @@ export function computePlayerComprehensiveTelemetry(
     blundersPerGame: Math.round((totalBlunders / safeTotal) * 100) / 100,
     favoriteOpening,
     timeClassBreakdown,
+  };
+}
+
+export function getPlayerFairPlayReport(username: string, games?: ChessGame[]): FairPlayReport {
+  return assessFairPlayRisk(games || SAMPLE_GAMES, username);
+}
+
+export function getPlayerRepertoireSummary(
+  username: string,
+  games?: ChessGame[]
+): PlayerRepertoireSummary {
+  const norm = username.trim().toLowerCase();
+  const sourceGames = games || SAMPLE_GAMES;
+
+  const whiteGames = sourceGames.filter((g) => g.white.username.toLowerCase() === norm);
+  const blackGames = sourceGames.filter((g) => g.black.username.toLowerCase() === norm);
+
+  const whiteTree = buildOpeningTree(whiteGames.length > 0 ? whiteGames : sourceGames, 12);
+  const blackTree = buildOpeningTree(blackGames.length > 0 ? blackGames : sourceGames, 12);
+
+  const mapContinuations = (items: ReturnType<typeof whiteTree.getContinuations>) =>
+    items.slice(0, 5).map((c) => ({
+      san: c.san,
+      totalGames: c.totalGames,
+      whiteWinRate: c.whiteWinRate,
+      blackWinRate: c.blackWinRate,
+      drawRate: c.drawRate,
+      nextZobristKey: c.nextZobristKey,
+    }));
+
+  return {
+    gamesIndexed: whiteGames.length + blackGames.length > 0 ? whiteGames.length + blackGames.length : sourceGames.length,
+    whiteTopMoves: mapContinuations(whiteTree.getContinuations(STARTING_FEN)),
+    blackTopMoves: mapContinuations(blackTree.getContinuations(STARTING_FEN)),
   };
 }

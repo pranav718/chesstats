@@ -116,7 +116,7 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.ok(data.telemetry.averageCaps >= 0);
   });
 
-  it('GET /api/player/[username] calculates comprehensive telemetry accurately', async () => {
+  it('GET /api/player/[username] calculates comprehensive telemetry, fairPlay, and repertoire summary', async () => {
     const req = new Request('http://localhost:3000/api/player/hikaru');
     const res = await playerHandler(req, { params: Promise.resolve({ username: 'hikaru' }) });
     assert.equal(res.status, 200);
@@ -126,5 +126,12 @@ describe('Backend API Routes and Validation Handlers', () => {
     assert.ok(data.telemetry.averageAccuracy >= 0 && data.telemetry.averageAccuracy <= 100);
     assert.ok(typeof data.telemetry.favoriteOpening === 'string');
     assert.ok(data.telemetry.blundersPerGame >= 0);
+    assert.ok(data.fairPlay !== undefined);
+    assert.ok(['clean', 'low', 'suspicious', 'anomalous'].includes(data.fairPlay.riskLevel));
+    assert.ok(data.fairPlay.timeEntropyIndex >= 10);
+    assert.ok(data.repertoire !== undefined);
+    assert.ok(data.repertoire.gamesIndexed >= 0);
+    assert.ok(Array.isArray(data.repertoire.whiteTopMoves));
+    assert.ok(Array.isArray(data.repertoire.blackTopMoves));
   });
 });

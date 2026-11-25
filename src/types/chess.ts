@@ -191,3 +191,18 @@ export interface PlayerComprehensiveTelemetry {
   favoriteOpening: string;
   timeClassBreakdown: Partial<Record<TimeClass, { games: number; winRate: number }>>;
 }
+
+export interface RepertoireMoveSummary {
+  san: string;
+  totalGames: number;
+  whiteWinRate: number;
+  blackWinRate: number;
+  drawRate: number;
+  nextZobristKey: string;
+}
+
+export interface PlayerRepertoireSummary {
+  gamesIndexed: number;
+  whiteTopMoves: RepertoireMoveSummary[];
+  blackTopMoves: RepertoireMoveSummary[];
+}
