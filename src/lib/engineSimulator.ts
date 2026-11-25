@@ -1,4 +1,6 @@
-import { parseFen, countMaterial, getTurnFromFen, coordsToSquare } from './fenPgn';
+import { parseFen, countMaterial, validateFen } from './fenPgn';
+import { searchBestMove } from './chessSearchEngine';
+import { formatUciToSan } from './sanNotation';
 
 export interface EngineLine {
   rank: number;
@@ -151,64 +153,36 @@ export function evaluateBoardPositionalScore(fen: string): {
   };
 }
 
-function hashFen(fen: string): number {
-  let hash = 0;
-  for (let i = 0; i < fen.length; i++) {
-    hash = (hash << 5) - hash + fen.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-function findOccupiedSquares(fen: string, color: 'white' | 'black'): string[] {
-  const board = parseFen(fen);
-  const squares: string[] = [];
-
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = board[r][c];
-      if (!piece) continue;
-      const isWhite = piece === piece.toUpperCase();
-      if ((color === 'white' && isWhite) || (color === 'black' && !isWhite)) {
-        squares.push(coordsToSquare(r, c));
-      }
-    }
-  }
-
-  return squares;
-}
-
 export function evaluatePositionLines(fen: string, config: Partial<EngineConfig> = {}): EngineLine[] {
   const depth = config.depth ?? DEFAULT_ENGINE_CONFIG.depth;
   const multiPv = Math.min(3, Math.max(1, config.multiPv ?? DEFAULT_ENGINE_CONFIG.multiPv));
-  const hash = hashFen(fen);
-  const turn = getTurnFromFen(fen);
-  const evaluation = evaluateBoardPositionalScore(fen);
 
-  const topScore = evaluation.totalScore;
-  const occupied = findOccupiedSquares(fen, turn);
-  const targetSquares = ['e4', 'd4', 'c4', 'f4', 'e5', 'd5', 'c5', 'f5', 'f3', 'c3', 'f6', 'c6'];
-
-  const lines: EngineLine[] = [];
-
-  for (let i = 0; i < multiPv; i++) {
-    const from = occupied.length > 0 ? occupied[(hash + i * 3) % occupied.length] : 'e2';
-    const to = targetSquares[(hash + i * 5) % targetSquares.length];
-    const scoreSpread = i === 0 ? topScore : topScore - (i * 35 + ((hash >> (i + 1)) % 25));
-    const nodes = 200000 + ((hash + i * 50000) % 900000);
-
-    lines.push({
-      rank: i + 1,
-      score: scoreSpread,
-      depth,
-      nodes,
-      pv: [from, to],
-      fromSquare: from,
-      toSquare: to,
-    });
+  const validation = validateFen(fen);
+  if (!validation.valid) {
+    return [];
   }
 
-  return lines;
+  const effectiveSearchDepth = depth <= 3 ? Math.max(1, depth) : 1;
+  const searchResult = searchBestMove(fen, {
+    depth: effectiveSearchDepth,
+    multiPv,
+  });
+
+  return searchResult.candidateMoves.map((candidate, idx) => {
+    const pvSan = candidate.pv.length > 0
+      ? [formatUciToSan(fen, candidate.uci) || candidate.uci, ...candidate.pv.slice(1)]
+      : [candidate.uci];
+
+    return {
+      rank: idx + 1,
+      score: candidate.whiteScore,
+      depth,
+      nodes: Math.max(1, searchResult.nodes),
+      pv: pvSan,
+      fromSquare: candidate.from,
+      toSquare: candidate.to,
+    };
+  });
 }
 
 export function formatEngineScore(scoreInCentipawns: number): string {

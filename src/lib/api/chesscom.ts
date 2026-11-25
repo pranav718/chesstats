@@ -1,5 +1,7 @@
 import { PlayerProfile, ChessGame, RatingStats, TimeClass } from '@/types/chess';
 import { parsePgn } from '../fenPgn';
+import { hydrateParsedGameMoves } from '../pgnAnalyzer';
+import { classifyOpening } from '../ecoClassifier';
 
 const CHESSCOM_BASE_URL = 'https://api.chess.com/pub';
 
@@ -129,11 +131,17 @@ export async function fetchChesscomRecentGames(username: string, max: number = 1
       else if (g.time_class === 'rapid') timeClass = 'rapid';
       else if (g.time_class === 'daily') timeClass = 'daily';
 
+      const hydratedMoves = hydrateParsedGameMoves(parsed.moves, parsed.headers['FEN']);
+      const inferredOpening =
+        !parsed.headers['ECO'] || !parsed.headers['Opening']
+          ? classifyOpening(parsed.moves)
+          : null;
+
       return {
         id: g.uuid || `chesscom-${index}`,
         url: g.url,
         pgn: g.pgn || '',
-        fen: g.fen || '',
+        fen: hydratedMoves[hydratedMoves.length - 1]?.fen || g.fen || '',
         white: {
           username: g.white?.username || 'Unknown',
           rating: g.white?.rating || 1500,
@@ -152,19 +160,10 @@ export async function fetchChesscomRecentGames(username: string, max: number = 1
         result: isWhite ? '1-0' : isBlack ? '0-1' : '1/2-1/2',
         winner: isWhite ? 'white' : isBlack ? 'black' : undefined,
         winReason: isWhite ? g.black?.result : g.white?.result,
-        eco: parsed.headers['ECO'],
-        openingName: parsed.headers['Opening'],
+        eco: parsed.headers['ECO'] || inferredOpening?.eco,
+        openingName: parsed.headers['Opening'] || inferredOpening?.name,
         accuracy: g.accuracies,
-        moves: parsed.moves.map((m, idx) => ({
-          ply: idx + 1,
-          moveNumber: Math.floor(idx / 2) + 1,
-          san: m,
-          uci: m,
-          fen: '',
-          evaluation: 0,
-          classification: 'good',
-          playedBy: idx % 2 === 0 ? 'white' : 'black',
-        })),
+        moves: hydratedMoves,
         platform: 'chesscom',
       };
     });
