@@ -96,5 +96,38 @@ describe('POST /api/engine/evaluate Route Handler', () => {
     const data = await res.json();
     assert.equal(data.bestMove.uci, 'f3f7');
     assert.ok(data.score > 10000);
+    assert.ok(data.stats.depthReached >= 1);
+  });
+
+  it('validates maxTimeMs and respects time-budgeted iterative deepening requests', async () => {
+    const invalidReq = new Request('http://localhost:3000/api/engine/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        maxTimeMs: -50,
+      }),
+    });
+    const invalidRes = await evaluateHandler(invalidReq);
+    assert.equal(invalidRes.status, 400);
+
+    const budgetedReq = new Request('http://localhost:3000/api/engine/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fen: 'r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 0 8',
+        depth: 5,
+        maxTimeMs: 15,
+      }),
+    });
+    const budgetedRes = await evaluateHandler(budgetedReq);
+    assert.equal(budgetedRes.status, 200);
+    const data = await budgetedRes.json();
+    assert.ok(data.stats.depthReached >= 1);
+    assert.equal(typeof data.stats.timedOut, 'boolean');
+    assert.equal(typeof data.stats.killerCutoffs, 'number');
+    assert.equal(typeof data.stats.aspirationResearches, 'number');
+    assert.equal(typeof data.positionalBreakdown.gamePhase, 'number');
+    assert.equal(typeof data.positionalBreakdown.endgameMopUpScore, 'number');
   });
 });

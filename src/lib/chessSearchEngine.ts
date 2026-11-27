@@ -10,6 +10,57 @@ export interface SearchStats {
   betaCutoffs: number;
   transpositionHits: number;
   transpositionCutoffs: number;
+  killerCutoffs?: number;
+  aspirationResearches?: number;
+}
+
+export interface MoveOrderingHeuristics {
+  killers: [string | null, string | null][];
+  history: Map<string, number>;
+}
+
+export function createSearchStats(): SearchStats {
+  return {
+    nodesSearched: 0,
+    quiescenceNodes: 0,
+    betaCutoffs: 0,
+    transpositionHits: 0,
+    transpositionCutoffs: 0,
+    killerCutoffs: 0,
+    aspirationResearches: 0,
+  };
+}
+
+export function createOrderingHeuristics(maxPlies: number = 32): MoveOrderingHeuristics {
+  return {
+    killers: Array.from({ length: maxPlies }, () => [null, null]),
+    history: new Map<string, number>(),
+  };
+}
+
+export function recordBetaCutoffHeuristic(
+  heuristics: MoveOrderingHeuristics,
+  move: MoveStep,
+  ply: number,
+  depth: number
+): void {
+  if (move.captured || move.promotion) {
+    return;
+  }
+
+  const uci = `${move.from}${move.to}`;
+  if (ply >= 0 && ply < heuristics.killers.length) {
+    const slot = heuristics.killers[ply];
+    if (slot[0] !== uci) {
+      slot[1] = slot[0];
+      slot[0] = uci;
+    }
+  }
+
+  const historyKey = `${move.piece.toLowerCase()}:${move.from}:${move.to}`;
+  const bonus = Math.max(1, depth * depth);
+  const current = heuristics.history.get(historyKey) || 0;
+  heuristics.history.set(historyKey, Math.min(30000, current + bonus));
 }
 
 export interface CandidateMoveEvaluation {
@@ -27,6 +78,8 @@ export interface SearchResult {
   bestMove: CandidateMoveEvaluation;
   score: number;
   depth: number;
+  depthReached: number;
+  timedOut: boolean;
   nodes: number;
   pv: string[];
   candidateMoves: CandidateMoveEvaluation[];
@@ -42,6 +95,25 @@ export interface SearchOptions {
   maxTimeMs?: number;
 }
 
+class SearchTimeoutSignal extends Error {
+  constructor() {
+    super('Search time budget exceeded');
+    this.name = 'SearchTimeoutSignal';
+  }
+}
+
+export interface SearchControl {
+  deadlineMs: number;
+  aborted: boolean;
+}
+
+function checkSearchBudget(stats: SearchStats, control?: SearchControl): void {
+  if (control && (stats.nodesSearched & 511) === 0 && performance.now() >= control.deadlineMs) {
+    control.aborted = true;
+    throw new SearchTimeoutSignal();
+  }
+}
+
 const PIECE_VALUES: Record<string, number> = {
   p: 100,
   n: 320,
@@ -51,41 +123,57 @@ const PIECE_VALUES: Record<string, number> = {
   k: 20000,
 };
 
-export function orderMoves(moves: MoveStep[], hashBestMoveUci?: string): MoveStep[] {
-  return [...moves].sort((a, b) => {
-    const aUci = `${a.from}${a.to}${a.promotion || ''}`;
-    const bUci = `${b.from}${b.to}${b.promotion || ''}`;
+function scoreMovePriority(
+  move: MoveStep,
+  hashBestMoveUci?: string,
+  heuristics?: MoveOrderingHeuristics,
+  ply: number = 0
+): number {
+  const uci = `${move.from}${move.to}${move.promotion || ''}`;
+  if (hashBestMoveUci && uci === hashBestMoveUci) {
+    return 2000000;
+  }
 
-    if (hashBestMoveUci) {
-      if (aUci === hashBestMoveUci) return -1;
-      if (bUci === hashBestMoveUci) return 1;
-    }
+  if (move.captured) {
+    const victimVal = PIECE_VALUES[move.captured.toLowerCase()] || 100;
+    const attackerVal = PIECE_VALUES[move.piece.toLowerCase()] || 100;
+    return victimVal * 10 - attackerVal + 100000;
+  }
 
-    let aPriority = 0;
-    let bPriority = 0;
+  if (move.promotion) {
+    return 90000 + (PIECE_VALUES[move.promotion.toLowerCase()] || 800);
+  }
 
-    if (a.captured) {
-      const victimVal = PIECE_VALUES[a.captured.toLowerCase()] || 100;
-      const attackerVal = PIECE_VALUES[a.piece.toLowerCase()] || 100;
-      aPriority = victimVal * 10 - attackerVal + 100000;
-    } else if (a.promotion) {
-      aPriority = 90000 + (PIECE_VALUES[a.promotion.toLowerCase()] || 800);
-    } else if (a.isCheck) {
-      aPriority = 50000;
-    }
+  if (heuristics && ply >= 0 && ply < heuristics.killers.length) {
+    const slot = heuristics.killers[ply];
+    if (slot[0] === uci) return 80000;
+    if (slot[1] === uci) return 70000;
+  }
 
-    if (b.captured) {
-      const victimVal = PIECE_VALUES[b.captured.toLowerCase()] || 100;
-      const attackerVal = PIECE_VALUES[b.piece.toLowerCase()] || 100;
-      bPriority = victimVal * 10 - attackerVal + 100000;
-    } else if (b.promotion) {
-      bPriority = 90000 + (PIECE_VALUES[b.promotion.toLowerCase()] || 800);
-    } else if (b.isCheck) {
-      bPriority = 50000;
-    }
+  if (move.isCheck) {
+    return 50000;
+  }
 
-    return bPriority - aPriority;
-  });
+  if (heuristics) {
+    const historyKey = `${move.piece.toLowerCase()}:${move.from}:${move.to}`;
+    return Math.min(40000, heuristics.history.get(historyKey) || 0);
+  }
+
+  return 0;
+}
+
+export function orderMoves(
+  moves: MoveStep[],
+  hashBestMoveUci?: string,
+  heuristics?: MoveOrderingHeuristics,
+  ply: number = 0
+): MoveStep[] {
+  const scored = moves.map((move) => ({
+    move,
+    priority: scoreMovePriority(move, hashBestMoveUci, heuristics, ply),
+  }));
+  scored.sort((a, b) => b.priority - a.priority);
+  return scored.map((entry) => entry.move);
 }
 
 export function quiescenceSearch(
@@ -94,10 +182,12 @@ export function quiescenceSearch(
   beta: number,
   turn: PieceColor,
   stats: SearchStats,
-  depthRemaining: number = 3
+  depthRemaining: number = 3,
+  control?: SearchControl
 ): number {
   stats.quiescenceNodes++;
   stats.nodesSearched++;
+  checkSearchBudget(stats, control);
 
   const inCheck = isKingInCheck(fen, turn);
 
@@ -132,7 +222,7 @@ export function quiescenceSearch(
     for (const capture of orderedCaptures) {
       const nextFen = executeMoveOnFen(fen, capture.from, capture.to, capture.promotion);
       const nextTurn = turn === 'white' ? 'black' : 'white';
-      const score = -quiescenceSearch(nextFen, -beta, -alpha, nextTurn, stats, depthRemaining - 1);
+      const score = -quiescenceSearch(nextFen, -beta, -alpha, nextTurn, stats, depthRemaining - 1, control);
 
       if (score >= beta) {
         stats.betaCutoffs++;
@@ -161,7 +251,7 @@ export function quiescenceSearch(
   for (const move of orderedEvasions) {
     const nextFen = executeMoveOnFen(fen, move.from, move.to, move.promotion);
     const nextTurn = turn === 'white' ? 'black' : 'white';
-    const score = -quiescenceSearch(nextFen, -beta, -alpha, nextTurn, stats, depthRemaining - 1);
+    const score = -quiescenceSearch(nextFen, -beta, -alpha, nextTurn, stats, depthRemaining - 1, control);
 
     if (score >= beta) {
       stats.betaCutoffs++;
@@ -184,9 +274,12 @@ export function negamax(
   turn: PieceColor,
   table: TranspositionTable,
   stats: SearchStats,
-  ply: number = 0
+  ply: number = 0,
+  heuristics?: MoveOrderingHeuristics,
+  control?: SearchControl
 ): number {
   stats.nodesSearched++;
+  checkSearchBudget(stats, control);
 
   const entry = table.get(fen, depth);
   if (entry) {
@@ -220,7 +313,7 @@ export function negamax(
 
   if (depth <= 0) {
     const qOrigAlpha = alpha;
-    const qScore = quiescenceSearch(fen, alpha, beta, turn, stats);
+    const qScore = quiescenceSearch(fen, alpha, beta, turn, stats, 3, control);
     const qNodeType: NodeType =
       qScore <= qOrigAlpha ? 'upperbound' : qScore >= beta ? 'lowerbound' : 'exact';
     table.set(fen, 0, qScore, qNodeType);
@@ -236,7 +329,7 @@ export function negamax(
   }
 
   const hashBestMoveUci = entry?.bestMove;
-  const orderedMoves = orderMoves(legalMoves, hashBestMoveUci);
+  const orderedMoves = orderMoves(legalMoves, hashBestMoveUci, heuristics, ply);
 
   const origAlpha = alpha;
   let bestScore = -Infinity;
@@ -245,7 +338,7 @@ export function negamax(
   for (const move of orderedMoves) {
     const nextFen = executeMoveOnFen(fen, move.from, move.to, move.promotion);
     const nextTurn = turn === 'white' ? 'black' : 'white';
-    const score = -negamax(nextFen, depth - 1, -beta, -alpha, nextTurn, table, stats, ply + 1);
+    const score = -negamax(nextFen, depth - 1, -beta, -alpha, nextTurn, table, stats, ply + 1, heuristics, control);
 
     if (score > bestScore) {
       bestScore = score;
@@ -258,6 +351,12 @@ export function negamax(
 
     if (alpha >= beta) {
       stats.betaCutoffs++;
+      if (!move.captured && !move.promotion) {
+        stats.killerCutoffs = (stats.killerCutoffs || 0) + 1;
+        if (heuristics) {
+          recordBetaCutoffHeuristic(heuristics, move, ply, depth);
+        }
+      }
       break;
     }
   }
@@ -306,20 +405,17 @@ export function extractPrincipalVariation(
 }
 
 export function searchBestMove(fen: string, options: SearchOptions = {}): SearchResult {
-  const depth = Math.min(5, Math.max(1, options.depth ?? 3));
+  const maxDepth = Math.min(6, Math.max(1, Math.floor(options.depth ?? 3)));
   const multiPv = Math.min(5, Math.max(1, options.multiPv ?? 1));
+  const maxTimeMs = options.maxTimeMs !== undefined ? Math.max(1, options.maxTimeMs) : 5000;
   const table = options.transpositionTable ?? new TranspositionTable(30000);
   const turn = getTurnFromFen(fen);
 
-  const stats: SearchStats = {
-    nodesSearched: 0,
-    quiescenceNodes: 0,
-    betaCutoffs: 0,
-    transpositionHits: 0,
-    transpositionCutoffs: 0,
-  };
+  const stats = createSearchStats();
+  const heuristics = createOrderingHeuristics();
 
   const startTime = performance.now();
+  const deadlineMs = startTime + maxTimeMs;
   const legalMoves = generateLegalMoves(fen);
 
   if (legalMoves.length === 0) {
@@ -336,7 +432,9 @@ export function searchBestMove(fen: string, options: SearchOptions = {}): Search
         pv: [],
       },
       score,
-      depth,
+      depth: maxDepth,
+      depthReached: maxDepth,
+      timedOut: false,
       nodes: 1,
       pv: [],
       candidateMoves: [],
@@ -346,54 +444,158 @@ export function searchBestMove(fen: string, options: SearchOptions = {}): Search
     };
   }
 
-  const rootEntry = table.get(fen, depth);
-  const orderedRootMoves = orderMoves(legalMoves, rootEntry?.bestMove);
+  let completedDepth = 0;
+  let timedOut = false;
+  let completedCandidates: CandidateMoveEvaluation[] = [];
+  let prevBestScore = 0;
 
-  const candidateMoves: CandidateMoveEvaluation[] = [];
+  for (let currentDepth = 1; currentDepth <= maxDepth; currentDepth++) {
+    if (currentDepth > 1 && performance.now() >= deadlineMs) {
+      timedOut = true;
+      break;
+    }
 
-  for (const move of orderedRootMoves) {
-    const uci = `${move.from}${move.to}${move.promotion || ''}`;
-    const nextFen = executeMoveOnFen(fen, move.from, move.to, move.promotion);
-    const nextTurn = turn === 'white' ? 'black' : 'white';
+    const control: SearchControl | undefined =
+      currentDepth > 1 ? { deadlineMs, aborted: false } : undefined;
+    const prevBestUci = completedCandidates[0]?.uci ?? table.get(fen, 0)?.bestMove;
+    const orderedRootMoves = orderMoves(legalMoves, prevBestUci, heuristics, 0);
 
-    const childScore = -negamax(
-      nextFen,
-      depth - 1,
-      -Infinity,
-      Infinity,
-      nextTurn,
-      table,
-      stats,
-      1
-    );
+    const iterCandidates: CandidateMoveEvaluation[] = [];
+    const useAspiration =
+      currentDepth >= 2 && completedCandidates.length > 0 && Math.abs(prevBestScore) < 15000;
 
-    const whiteScore = turn === 'white' ? childScore : -childScore;
-    const movePv = [uci, ...extractPrincipalVariation(nextFen, table, 4)];
+    try {
+      for (let idx = 0; idx < orderedRootMoves.length; idx++) {
+        if (control && performance.now() >= control.deadlineMs) {
+          control.aborted = true;
+          throw new SearchTimeoutSignal();
+        }
 
-    candidateMoves.push({
-      uci,
-      from: move.from,
-      to: move.to,
-      piece: move.piece,
-      promotion: move.promotion,
-      score: childScore,
-      whiteScore,
-      pv: movePv,
-    });
+        const move = orderedRootMoves[idx];
+        const uci = `${move.from}${move.to}${move.promotion || ''}`;
+        const nextFen = executeMoveOnFen(fen, move.from, move.to, move.promotion);
+        const nextTurn = turn === 'white' ? 'black' : 'white';
+
+        let childScore: number;
+
+        if (idx === 0 && useAspiration) {
+          const aspAlpha = prevBestScore - 50;
+          const aspBeta = prevBestScore + 50;
+          childScore = -negamax(
+            nextFen,
+            currentDepth - 1,
+            -aspBeta,
+            -aspAlpha,
+            nextTurn,
+            table,
+            stats,
+            1,
+            heuristics,
+            control
+          );
+
+          if (childScore <= aspAlpha || childScore >= aspBeta) {
+            stats.aspirationResearches = (stats.aspirationResearches || 0) + 1;
+            childScore = -negamax(
+              nextFen,
+              currentDepth - 1,
+              -Infinity,
+              Infinity,
+              nextTurn,
+              table,
+              stats,
+              1,
+              heuristics,
+              control
+            );
+          }
+        } else if (iterCandidates.length >= multiPv) {
+          const sortedSoFar = [...iterCandidates].sort((a, b) => b.score - a.score);
+          const threshold = sortedSoFar[multiPv - 1].score;
+          childScore = -negamax(
+            nextFen,
+            currentDepth - 1,
+            -Infinity,
+            -threshold,
+            nextTurn,
+            table,
+            stats,
+            1,
+            heuristics,
+            control
+          );
+
+          if (childScore > threshold) {
+            childScore = -negamax(
+              nextFen,
+              currentDepth - 1,
+              -Infinity,
+              Infinity,
+              nextTurn,
+              table,
+              stats,
+              1,
+              heuristics,
+              control
+            );
+          }
+        } else {
+          childScore = -negamax(
+            nextFen,
+            currentDepth - 1,
+            -Infinity,
+            Infinity,
+            nextTurn,
+            table,
+            stats,
+            1,
+            heuristics,
+            control
+          );
+        }
+
+        const whiteScore = turn === 'white' ? childScore : -childScore;
+        const movePv = [uci, ...extractPrincipalVariation(nextFen, table, 4)];
+
+        iterCandidates.push({
+          uci,
+          from: move.from,
+          to: move.to,
+          piece: move.piece,
+          promotion: move.promotion,
+          score: childScore,
+          whiteScore,
+          pv: movePv,
+        });
+      }
+
+      iterCandidates.sort((a, b) => b.score - a.score);
+      completedCandidates = iterCandidates;
+      completedDepth = currentDepth;
+      prevBestScore = completedCandidates[0].score;
+
+      table.set(
+        fen,
+        currentDepth,
+        completedCandidates[0].score,
+        'exact',
+        completedCandidates[0].uci
+      );
+
+      if (completedCandidates[0].score >= 19000 && multiPv === 1 && currentDepth >= 2) {
+        break;
+      }
+    } catch (err) {
+      if (err instanceof SearchTimeoutSignal) {
+        timedOut = true;
+        break;
+      }
+      throw err;
+    }
   }
 
-  candidateMoves.sort((a, b) => b.score - a.score);
-
-  const best = candidateMoves[0];
+  const best = completedCandidates[0];
   const overallWhiteScore = best.whiteScore;
-
-  table.set(
-    fen,
-    depth,
-    best.score,
-    'exact',
-    best.uci
-  );
 
   const endTime = performance.now();
   const timeMs = Math.round((endTime - startTime) * 100) / 100;
@@ -402,10 +604,12 @@ export function searchBestMove(fen: string, options: SearchOptions = {}): Search
   return {
     bestMove: best,
     score: overallWhiteScore,
-    depth,
+    depth: completedDepth,
+    depthReached: completedDepth,
+    timedOut,
     nodes: stats.nodesSearched,
     pv: best.pv,
-    candidateMoves: candidateMoves.slice(0, multiPv),
+    candidateMoves: completedCandidates.slice(0, multiPv),
     timeMs,
     nps,
     stats,

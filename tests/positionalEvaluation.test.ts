@@ -6,6 +6,8 @@ import {
   evaluateBishopPairs,
   evaluateRookFiles,
   evaluateKingShelter,
+  computeGamePhase,
+  evaluateEndgameMopUp,
 } from '@/lib/positionalEvaluation';
 import { parseFen } from '@/lib/fenPgn';
 
@@ -20,6 +22,8 @@ describe('Positional Evaluation Heuristics Engine', () => {
     assert.equal(breakdown.pawnStructureScore, 0);
     assert.equal(breakdown.rookFilesScore, 0);
     assert.equal(breakdown.kingShelterScore, 0);
+    assert.equal(breakdown.endgameMopUpScore, 0);
+    assert.equal(breakdown.gamePhase, 1);
     assert.equal(breakdown.totalScore, 0);
   });
 
@@ -75,6 +79,29 @@ describe('Positional Evaluation Heuristics Engine', () => {
     assert.equal(typeof breakdown.pawnStructureScore, 'number');
     assert.equal(typeof breakdown.rookFilesScore, 'number');
     assert.equal(typeof breakdown.kingShelterScore, 'number');
+    assert.equal(typeof breakdown.endgameMopUpScore, 'number');
+    assert.equal(typeof breakdown.gamePhase, 'number');
     assert.equal(typeof breakdown.totalScore, 'number');
+  });
+
+  it('tapers king safety and encourages king centralization in pure endgames', () => {
+    const startBoard = parseFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    assert.equal(computeGamePhase(startBoard), 1);
+
+    const centralKingEndgame = evaluatePositionalFeatures('4k3/8/8/8/4K3/8/4P3/8 w - - 0 1');
+    const cornerKingEndgame = evaluatePositionalFeatures('4k3/8/8/8/8/8/4P3/K7 w - - 0 1');
+    assert.equal(centralKingEndgame.gamePhase, 0);
+    assert.ok(centralKingEndgame.pstScore > cornerKingEndgame.pstScore);
+  });
+
+  it('rewards endgame mop-up geometry when driving losing king to board corners', () => {
+    const boardCornered = parseFen('k7/8/1K6/8/8/8/8/4R3 w - - 0 1');
+    const boardCentral = parseFen('8/8/8/3k4/8/8/8/K3R3 w - - 0 1');
+    const phase = computeGamePhase(boardCornered);
+
+    const cornerBonus = evaluateEndgameMopUp(boardCornered, 500, phase);
+    const centerBonus = evaluateEndgameMopUp(boardCentral, 500, phase);
+    assert.ok(cornerBonus > centerBonus);
+    assert.ok(cornerBonus > 50);
   });
 });
