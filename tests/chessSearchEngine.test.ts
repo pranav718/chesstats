@@ -6,6 +6,9 @@ import {
   negamax,
   searchBestMove,
   SearchStats,
+  createSearchStats,
+  createOrderingHeuristics,
+  recordBetaCutoffHeuristic,
 } from '@/lib/chessSearchEngine';
 import { TranspositionTable } from '@/lib/transpositionTable';
 import { generateLegalMoves } from '@/lib/moveEngine';
@@ -22,6 +25,30 @@ describe('Negamax Search Engine with Alpha-Beta Pruning and Quiescence', () => {
     const orderedWithHash = orderMoves(moves, 'd4d5');
     assert.equal(orderedWithHash[0].from, 'd4');
     assert.equal(orderedWithHash[0].to, 'd5');
+  });
+
+  it('orderMoves prioritizes killer slots and history heuristics for quiet moves', () => {
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const moves = generateLegalMoves(fen);
+    const heuristics = createOrderingHeuristics();
+
+    const quietA = moves.find((m) => m.from === 'a2' && m.to === 'a3')!;
+    const quietB = moves.find((m) => m.from === 'h2' && m.to === 'h3')!;
+
+    recordBetaCutoffHeuristic(heuristics, quietB, 1, 2);
+    recordBetaCutoffHeuristic(heuristics, quietA, 1, 3);
+
+    const ordered = orderMoves(moves, undefined, heuristics, 1);
+    assert.equal(ordered[0].from, 'a2');
+    assert.equal(ordered[0].to, 'a3');
+    assert.equal(ordered[1].from, 'h2');
+    assert.equal(ordered[1].to, 'h3');
+
+    const quietC = moves.find((m) => m.from === 'g1' && m.to === 'f3')!;
+    recordBetaCutoffHeuristic(heuristics, quietC, 5, 4);
+    const orderedAtRoot = orderMoves(moves, undefined, heuristics, 0);
+    assert.equal(orderedAtRoot[0].from, 'g1');
+    assert.equal(orderedAtRoot[0].to, 'f3');
   });
 
   it('quiescenceSearch computes tactical capture resolution beyond nominal depth', () => {
