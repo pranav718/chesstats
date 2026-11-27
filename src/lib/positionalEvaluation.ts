@@ -1,4 +1,4 @@
-import { parseFen, squareToCoords } from './fenPgn';
+import { parseFen } from './fenPgn';
 
 export interface PawnStructureEvaluation {
   whiteDoubledPenalty: number;
@@ -17,6 +17,8 @@ export interface PositionalEvaluationBreakdown {
   pawnStructureScore: number;
   rookFilesScore: number;
   kingShelterScore: number;
+  endgameMopUpScore: number;
+  gamePhase: number;
   totalScore: number;
 }
 
@@ -94,6 +96,43 @@ const KING_PST_MID: number[][] = [
   [20, 20, 0, 0, 0, 0, 20, 20],
   [20, 30, 10, 0, 0, 10, 30, 20],
 ];
+
+const KING_PST_ENDGAME: number[][] = [
+  [-50, -40, -30, -20, -20, -30, -40, -50],
+  [-30, -20, -10, 0, 0, -10, -20, -30],
+  [-30, -10, 20, 30, 30, 20, -10, -30],
+  [-30, -10, 30, 40, 40, 30, -10, -30],
+  [-30, -10, 30, 40, 40, 30, -10, -30],
+  [-30, -10, 20, 30, 30, 20, -10, -30],
+  [-30, -30, 0, 0, 0, 0, -30, -30],
+  [-50, -30, -30, -30, -30, -30, -30, -50],
+];
+
+const PHASE_WEIGHTS: Record<string, number> = {
+  n: 1,
+  b: 1,
+  r: 2,
+  q: 4,
+};
+
+const MAX_PHASE_WEIGHT = 24;
+
+export function computeGamePhase(board: (string | null)[][]): number {
+  let phaseSum = 0;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (!piece) continue;
+      const weight = PHASE_WEIGHTS[piece.toLowerCase()];
+      if (weight) {
+        phaseSum += weight;
+      }
+    }
+  }
+
+  return Math.min(MAX_PHASE_WEIGHT, phaseSum) / MAX_PHASE_WEIGHT;
+}
 
 export function evaluatePawnStructure(board: (string | null)[][]): PawnStructureEvaluation {
   const whitePawnsByFile: number[][] = Array.from({ length: 8 }, () => []);
@@ -295,8 +334,46 @@ export function evaluateKingShelter(board: (string | null)[][]): { whitePenalty:
   return { whitePenalty, blackPenalty };
 }
 
+export function evaluateEndgameMopUp(
+  board: (string | null)[][],
+  materialScore: number,
+  gamePhase: number
+): number {
+  if (gamePhase > 0.25 || Math.abs(materialScore) < 400) {
+    return 0;
+  }
+
+  let whiteKingPos: [number, number] | null = null;
+  let blackKingPos: [number, number] | null = null;
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = board[r][c];
+      if (p === 'K') whiteKingPos = [r, c];
+      if (p === 'k') blackKingPos = [r, c];
+    }
+  }
+
+  if (!whiteKingPos || !blackKingPos) {
+    return 0;
+  }
+
+  const whiteWinning = materialScore > 0;
+  const winKing = whiteWinning ? whiteKingPos : blackKingPos;
+  const loseKing = whiteWinning ? blackKingPos : whiteKingPos;
+
+  const fileDistFromCenter = Math.max(3 - loseKing[1], loseKing[1] - 4);
+  const rankDistFromCenter = Math.max(3 - loseKing[0], loseKing[0] - 4);
+  const centerDist = fileDistFromCenter + rankDistFromCenter;
+  const kingDistance = Math.abs(winKing[0] - loseKing[0]) + Math.abs(winKing[1] - loseKing[1]);
+
+  const rawBonus = Math.round((centerDist * 10 + (14 - kingDistance) * 4) * (1 - gamePhase));
+  return whiteWinning ? rawBonus : -rawBonus;
+}
+
 export function evaluatePositionalFeatures(fen: string): PositionalEvaluationBreakdown {
   const board = parseFen(fen);
+  const phase = computeGamePhase(board);
 
   let materialWhite = 0;
   let materialBlack = 0;
@@ -323,7 +400,11 @@ export function evaluatePositionalFeatures(fen: string): PositionalEvaluationBre
       else if (lower === 'b') pstVal = BISHOP_PST[tableRow][c];
       else if (lower === 'r') pstVal = ROOK_PST[tableRow][c];
       else if (lower === 'q') pstVal = QUEEN_PST[tableRow][c];
-      else if (lower === 'k') pstVal = KING_PST_MID[tableRow][c];
+      else if (lower === 'k') {
+        pstVal = Math.round(
+          KING_PST_MID[tableRow][c] * phase + KING_PST_ENDGAME[tableRow][c] * (1 - phase)
+        );
+      }
 
       if (isWhite) whitePst += pstVal;
       else blackPst += pstVal;
@@ -343,7 +424,9 @@ export function evaluatePositionalFeatures(fen: string): PositionalEvaluationBre
   const rookFilesScore = rookFiles.whiteBonus - rookFiles.blackBonus;
 
   const kingShelter = evaluateKingShelter(board);
-  const kingShelterScore = kingShelter.blackPenalty - kingShelter.whitePenalty;
+  const kingShelterScore = Math.round((kingShelter.blackPenalty - kingShelter.whitePenalty) * phase);
+
+  const endgameMopUpScore = evaluateEndgameMopUp(board, materialScore, phase);
 
   const totalScore =
     materialScore +
@@ -351,7 +434,8 @@ export function evaluatePositionalFeatures(fen: string): PositionalEvaluationBre
     bishopPairScore +
     pawnStructureScore +
     rookFilesScore +
-    kingShelterScore;
+    kingShelterScore +
+    endgameMopUpScore;
 
   return {
     materialScore,
@@ -360,6 +444,8 @@ export function evaluatePositionalFeatures(fen: string): PositionalEvaluationBre
     pawnStructureScore,
     rookFilesScore,
     kingShelterScore,
+    endgameMopUpScore,
+    gamePhase: Math.round(phase * 100) / 100,
     totalScore,
   };
 }
