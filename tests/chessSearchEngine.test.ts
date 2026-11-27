@@ -101,7 +101,25 @@ describe('Negamax Search Engine with Alpha-Beta Pruning and Quiescence', () => {
     assert.ok(result.candidateMoves.length === 3);
     assert.ok(result.candidateMoves[0].score >= result.candidateMoves[1].score);
     assert.ok(result.candidateMoves[1].score >= result.candidateMoves[2].score);
+    assert.equal(result.depthReached, 1);
+    assert.equal(result.timedOut, false);
     assert.ok(result.nps >= 0);
     assert.ok(result.timeMs >= 0);
+  });
+
+  it('searchBestMove runs iterative deepening and enforces maxTimeMs budget cleanly', () => {
+    const middlegameFen = 'r1bqk2r/pp2bppp/2n1pn2/2pp4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 0 8';
+    const deepResult = searchBestMove(middlegameFen, { depth: 2, multiPv: 1 });
+    assert.equal(deepResult.depthReached, 2);
+    assert.equal(deepResult.timedOut, false);
+    assert.ok(deepResult.stats.transpositionHits > 0);
+    assert.equal(typeof deepResult.stats.aspirationResearches, 'number');
+
+    const budgetedResult = searchBestMove(middlegameFen, { depth: 5, maxTimeMs: 12 });
+    assert.ok(budgetedResult.depthReached >= 1);
+    assert.ok(budgetedResult.depthReached < 5);
+    assert.equal(budgetedResult.timedOut, true);
+    assert.ok(budgetedResult.bestMove.uci !== '0000');
+    assert.ok(budgetedResult.timeMs < 150);
   });
 });
